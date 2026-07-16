@@ -1,7 +1,14 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
+from app.core.database import engine, Base
 from app.api.v1 import auth, cases, tracking, vision
+
+# Import all models so SQLAlchemy knows about them
+from app.models import user, case, telemetry, vision
+
+# Create all tables in the database
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -17,7 +24,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Enforcing direct endpoints mapping strings cleanly with zero repeats
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
 app.include_router(cases.router, prefix="/api/v1/cases", tags=["Case Files"])
 app.include_router(tracking.router, prefix="/api/v1/tracking", tags=["Tactical Telematics"])
