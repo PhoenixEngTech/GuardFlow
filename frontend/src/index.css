@@ -1,0 +1,15 @@
+@import "tailwindcss";
+
+@theme {
+  --color-tactical-bg: #0B0F19;
+  --color-tactical-panel: #161F30;
+  --color-tactical-border: #24324D;
+  --color-tactical-accent: #3B82F6;
+}
+
+body {
+  background-color: #0B0F19;
+  color: #F3F4F6;
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}

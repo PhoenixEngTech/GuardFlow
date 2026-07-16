@@ -1,0 +1,16 @@
+﻿# Dependencies
+frontend/node_modules/
+**/__pycache__/
+*.pyc
+
+# Environment files (important - contains secrets)
+backend/.env
+**/.env
+
+# Build folders
+frontend/dist/
+frontend/build/
+
+# System files
+.DS_Store
+Thumbs.db
