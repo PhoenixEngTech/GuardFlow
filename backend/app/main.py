@@ -2,13 +2,17 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.database import engine, Base
-from app.api.v1 import auth, cases, tracking, vision
 
-# Import all models so SQLAlchemy knows about them
-from app.models import user, case, telemetry, vision
+# Import models explicitly
+import app.models.user
+import app.models.case
+import app.models.telemetry
+import app.models.vision
 
-# Create all tables in the database
+# Create all tables
 Base.metadata.create_all(bind=engine)
+
+from app.api.v1 import auth, cases, tracking, vision
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
