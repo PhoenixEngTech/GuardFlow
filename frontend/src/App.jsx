@@ -1,91 +1,141 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './Login';
 import Tracking from './Tracking';
 import VisionFlow from './VisionFlow';
-import { 
-  Shield, FolderOpen, Radio, Eye, LogOut, 
-  Briefcase, Activity, AlertTriangle, CheckCircle, 
-  Clock, Plus, RefreshCw, UserCheck, Search, X, Loader2
+import {
+  Shield, FolderOpen, Radio, Eye, LogOut, Briefcase, Activity,
+  AlertTriangle, CheckCircle, Clock, Plus, RefreshCw, UserCheck,
+  Search, X, Loader2
 } from 'lucide-react';
 
-function CaseDashboard({ cases, loading, error, fetchCases, userRole }) {
+const API_URL = (
+  import.meta.env.VITE_API_URL ||
+  'https://guardflow-production.up.railway.app'
+).replace(/\/$/, '');
+
+async function readResponse(response) {
+  const text = await response.text();
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { detail: text };
+  }
+}
+
+function CaseDashboard({ cases, loading, error }) {
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const filteredCases = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+    if (!query) return cases;
+    return cases.filter((caseFile) =>
+      [caseFile.case_number, caseFile.title, caseFile.description, caseFile.status]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(query))
+    );
+  }, [cases, searchTerm]);
+
+  const resolved = cases.filter((caseFile) =>
+    ['resolved', 'closed', 'completed'].includes(
+      String(caseFile.status || '').toLowerCase()
+    )
+  ).length;
+
+  const active = cases.filter((caseFile) =>
+    ['active', 'in_progress', 'investigating'].includes(
+      String(caseFile.status || '').toLowerCase()
+    )
+  ).length;
+
+  const metrics = [
+    { label: 'Total Files', value: cases.length, icon: Briefcase, className: 'text-white' },
+    { label: 'Open Cases', value: Math.max(cases.length - resolved, 0), icon: AlertTriangle, className: 'text-yellow-400' },
+    { label: 'Active', value: active, icon: Activity, className: 'text-blue-400' },
+    { label: 'Resolved', value: resolved, icon: CheckCircle, className: 'text-green-400' },
+  ];
+
   return (
     <>
-      {/* ANALYTICAL METRICS HUD BANNER */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-tactical-panel border border-tactical-border rounded-xl p-5 flex items-center justify-between">
-          <div>
-            <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">Total Files</p>
-            <h3 className="text-2xl font-bold text-white mt-1">{cases.length}</h3>
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        {metrics.map(({ label, value, icon: Icon, className }) => (
+          <div key={label} className="bg-tactical-panel border border-tactical-border rounded-xl p-5 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">{label}</p>
+              <h3 className={`text-2xl font-bold mt-1 ${className}`}>{value}</h3>
+            </div>
+            <div className="p-3 bg-blue-600/10 border border-blue-500/10 rounded-xl">
+              <Icon className={`w-5 h-5 ${className}`} />
+            </div>
           </div>
-          <div className="p-3 bg-blue-600/10 border border-blue-500/10 rounded-xl text-tactical-accent">
-            <Briefcase className="w-5 h-5" />
-          </div>
-        </div>
-        <div className="bg-tactical-panel border border-tactical-border rounded-xl p-5 flex items-center justify-between">
-          <div>
-            <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">GPS Tracks</p>
-            <h3 className="text-2xl font-bold text-blue-400 mt-1">1</h3>
-          </div>
-          <div className="p-3 bg-indigo-600/10 border border-indigo-500/10 rounded-xl text-indigo-400">
-            <Activity className="w-5 h-5" />
-          </div>
-        </div>
-        <div className="bg-tactical-panel border border-tactical-border rounded-xl p-5 flex items-center justify-between">
-          <div>
-            <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">AI Watches</p>
-            <h3 className="text-2xl font-bold text-yellow-500 mt-1">1</h3>
-          </div>
-          <div className="p-3 bg-yellow-600/10 border border-yellow-500/10 rounded-xl text-yellow-500">
-            <AlertTriangle className="w-5 h-5" />
-          </div>
-        </div>
-        <div className="bg-tactical-panel border border-tactical-border rounded-xl p-5 flex items-center justify-between">
-          <div>
-            <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">Resolved</p>
-            <h3 className="text-2xl font-bold text-green-400 mt-1">0</h3>
-          </div>
-          <div className="p-3 bg-green-600/10 border border-green-500/10 rounded-xl text-green-400">
-            <CheckCircle className="w-5 h-5" />
-          </div>
-        </div>
+        ))}
       </div>
 
-      {/* CORE LOGS GRID SECTION */}
       <div className="bg-tactical-panel border border-tactical-border rounded-xl overflow-hidden shadow-xl">
-        <div className="p-5 border-b border-tactical-border bg-tactical-panel/40 flex items-center justify-between">
+        <div className="p-5 border-b border-tactical-border bg-tactical-panel/40 flex flex-col md:flex-row md:items-center justify-between gap-3">
           <h3 className="text-sm font-bold text-white tracking-wide uppercase">Case Registries Log</h3>
-          <div className="relative w-64">
-            <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">
-              <Search className="w-3.5 h-3.5" />
-            </span>
-            <input type="text" placeholder="Filter cases..." className="w-full bg-tactical-bg border border-tactical-border rounded-lg py-1.5 pl-9 pr-4 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-tactical-accent" />
+          <div className="relative w-full md:w-72">
+            <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-gray-500" />
+            <input
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Filter cases..."
+              className="w-full bg-tactical-bg border border-tactical-border rounded-lg py-2 pl-9 pr-4 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-tactical-accent"
+            />
           </div>
         </div>
+
         <div className="p-6">
           {loading ? (
             <div className="py-12 flex flex-col items-center justify-center text-gray-400 gap-3">
               <RefreshCw className="w-6 h-6 animate-spin text-tactical-accent" />
-              <span className="text-xs font-medium">Syncing database...</span>
+              <span className="text-xs">Synchronising case records...</span>
             </div>
           ) : error ? (
-            <div className="p-4 bg-red-950/20 border border-red-800/30 text-red-300 text-xs rounded-xl text-center">⚠️ Sync Error: {error}</div>
+            <div className="p-4 bg-red-950/20 border border-red-800/30 text-red-300 text-xs rounded-xl text-center">
+              Sync error: {error}
+            </div>
+          ) : filteredCases.length === 0 ? (
+            <div className="py-14 text-center text-gray-500">
+              <FolderOpen className="w-9 h-9 mx-auto mb-3 text-gray-600" />
+              <p className="text-sm">No matching case files found.</p>
+            </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {cases.map((c) => (
-                <div key={c.id} className="bg-tactical-bg border border-tactical-border rounded-xl p-5 hover:border-gray-600 transition-all flex flex-col justify-between space-y-4 relative overflow-hidden group">
+            <div className="grid grid-cols-1 2xl:grid-cols-2 gap-4">
+              {filteredCases.map((caseFile) => (
+                <div key={caseFile.id} className="bg-tactical-bg border border-tactical-border rounded-xl p-5 hover:border-gray-600 transition-all space-y-4">
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-tactical-accent bg-blue-950/50 border border-blue-900/40 px-2.5 py-1 rounded-md tracking-wider">{c.case_number}</span>
-                      <span className="text-[10px] font-semibold text-green-400 bg-green-950/40 border border-green-900/40 px-2 py-0.5 rounded-full capitalize flex items-center gap-1"><span className="w-1 h-1 rounded-full bg-green-400" />{c.status}</span>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-xs font-bold text-tactical-accent bg-blue-950/50 border border-blue-900/40 px-2.5 py-1 rounded-md">
+                        {caseFile.case_number || 'UNNUMBERED'}
+                      </span>
+                      <span className="text-[10px] text-green-400 bg-green-950/40 border border-green-900/40 px-2 py-0.5 rounded-full capitalize">
+                        {caseFile.status || 'open'}
+                      </span>
                     </div>
-                    <h4 className="text-md font-bold text-white pt-1 group-hover:text-tactical-accent transition-colors">{c.title}</h4>
-                    <p className="text-xs text-gray-400 leading-relaxed line-clamp-2">{c.description || 'No tactical overview specified.'}</p>
+                    <h4 className="text-md font-bold text-white">{caseFile.title || 'Untitled case file'}</h4>
+                    <p className="text-xs text-gray-400 leading-relaxed">
+                      {caseFile.description || 'No operational overview recorded.'}
+                    </p>
                   </div>
-                  <div className="pt-4 border-t border-tactical-border/60 flex items-center justify-between text-[11px] text-gray-500 font-medium">
-                    <div className="flex items-center gap-1.5"><UserCheck className="w-3.5 h-3.5 text-gray-400" /><span className="truncate max-w-[120px]">Op: {c.assigned_operator_id?.substring(0, 8)}...</span></div>
-                    <div className="flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-gray-400" /><span>{new Date(c.created_at).toLocaleDateString()}</span></div>
+                  <div className="pt-4 border-t border-tactical-border/60 flex flex-col sm:flex-row justify-between gap-2 text-[11px] text-gray-500">
+                    <div className="flex items-center gap-1.5">
+                      <UserCheck className="w-3.5 h-3.5" />
+                      <span>
+                        Operator: {caseFile.assigned_operator_id
+                          ? String(caseFile.assigned_operator_id).slice(0, 12)
+                          : 'Unassigned'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>
+                        {caseFile.created_at
+                          ? new Date(caseFile.created_at).toLocaleDateString()
+                          : 'Not recorded'}
+                      </span>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -96,141 +146,213 @@ function CaseDashboard({ cases, loading, error, fetchCases, userRole }) {
     </>
   );
 }
+
 function MainConsole() {
-  const { user, logout } = useAuth();
-  const [currentView, setCurrentView] = useState('cases'); 
+  const { token, user, logout } = useAuth();
+  const [currentView, setCurrentView] = useState('cases');
   const [cases, setCases] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [submitLoading, setSubmitLoading] = useState(false);
   const [formError, setFormError] = useState('');
 
-  const fetchCases = async () => {
+  const fetchCases = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const response = await fetch('/api/v1/cases/');
-      if (!response.ok) throw new Error('Failed to fetch database entries.');
-      const data = await response.json();
-      setCases(data);
-    } catch (err) { setError(err.message); }
-    finally { setLoading(false); }
-  };
+      const response = await fetch(`${API_URL}/api/v1/cases/`, {
+        headers: {
+          Accept: 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await readResponse(response);
+      if (response.status === 401) {
+        logout();
+        throw new Error('Session expired. Please sign in again.');
+      }
+      if (!response.ok) throw new Error(data?.detail || 'Failed to retrieve case files.');
+      setCases(Array.isArray(data) ? data : data?.items || []);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'Unable to retrieve case files.');
+    } finally {
+      setLoading(false);
+    }
+  }, [logout, token]);
 
-  useEffect(() => { fetchCases(); }, []);
+  useEffect(() => {
+    fetchCases();
+  }, [fetchCases]);
 
-  const handleCreateCase = async (e) => {
-    e.preventDefault();
+  const handleCreateCase = async (event) => {
+    event.preventDefault();
     setFormError('');
     setSubmitLoading(true);
-
     try {
-      const response = await fetch('/api/v1/cases/', {
+      const response = await fetch(`${API_URL}/api/v1/cases/`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          Accept: 'application/json',
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
-          title: title,
-          description: description,
-          assigned_operator_id: user?.id || "b0800fe7-010a-436b-bdd7-a93e053cbe91"
-        })
+          title: title.trim(),
+          description: description.trim(),
+          assigned_operator_id: user?.id || null,
+        }),
       });
-
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.detail || 'Failed to submit data entry.');
-
-      alert(`Success! Case File ${data.case_number} recorded.`);
+      const data = await readResponse(response);
+      if (response.status === 401) {
+        logout();
+        throw new Error('Session expired. Please sign in again.');
+      }
+      if (!response.ok) throw new Error(data?.detail || 'Failed to create the case file.');
       setIsModalOpen(false);
       setTitle('');
       setDescription('');
-      fetchCases(); 
-    } catch (err) {
-      setFormError(err.message);
+      await fetchCases();
+    } catch (requestError) {
+      setFormError(requestError instanceof Error ? requestError.message : 'Unable to create the case file.');
     } finally {
       setSubmitLoading(false);
     }
   };
 
   const userRole = user?.role || 'field_agent';
+  const viewTitle =
+    currentView === 'cases'
+      ? 'Operational Registers'
+      : currentView === 'tracking'
+        ? 'Live Telematics Stream'
+        : 'VisionFlow AI Surveillance';
 
   return (
-    <div className="min-h-screen bg-tactical-bg flex text-gray-100 font-sans relative">
-      <aside className="w-64 bg-tactical-panel border-r border-tactical-border flex flex-col justify-between p-5">
-        <div className="space-y-6">
-          <div className="flex items-center gap-3 px-2 py-1">
-            <div className="bg-blue-600/10 p-2 rounded-lg border border-blue-500/20"><Shield className="w-6 h-6 text-tactical-accent" /></div>
-            <div><h2 className="text-md font-bold tracking-tight text-white">GuardFlow</h2><span className="text-xs text-gray-400 font-medium">Tshenolo PI Hub</span></div>
+    <div className="min-h-screen bg-tactical-bg flex flex-col lg:flex-row text-gray-100 font-sans">
+      <aside className="w-full lg:w-64 bg-tactical-panel border-b lg:border-b-0 lg:border-r border-tactical-border flex lg:flex-col justify-between p-4 lg:p-5 gap-4">
+        <div className="space-y-4 lg:space-y-6 flex-1">
+          <div className="flex items-center gap-3 px-2">
+            <div className="bg-blue-600/10 p-2 rounded-lg border border-blue-500/20">
+              <Shield className="w-6 h-6 text-tactical-accent" />
+            </div>
+            <div>
+              <h2 className="font-bold text-white">GuardFlow</h2>
+              <span className="text-xs text-gray-400">Operational Intelligence</span>
+            </div>
           </div>
-          <nav className="space-y-1">
-            <button onClick={() => setCurrentView('cases')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${currentView === 'cases' ? 'bg-blue-600 text-white shadow-md shadow-blue-500/10' : 'text-gray-400 hover:bg-tactical-border/30 hover:text-white'}`}>
-              <FolderOpen className="w-4 h-4" /><span>Case Files</span>
-            </button>
-            <button onClick={() => setCurrentView('tracking')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${currentView === 'tracking' ? 'bg-blue-600 text-white shadow-md shadow-blue-500/10' : 'text-gray-400 hover:bg-tactical-border/30 hover:text-white'}`}>
-              <Radio className="w-4 h-4" /><span>Tactical Telematics</span>
-            </button>
-            {userRole === 'admin' && (
-              <button onClick={() => setCurrentView('vision')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${currentView === 'vision' ? 'bg-blue-600 text-white shadow-md shadow-blue-500/10' : 'text-gray-400 hover:bg-tactical-border/30 hover:text-white'}`}>
-                <Eye className="w-4 h-4" /><span>VisionFlow AI</span>
+
+          <nav className="grid grid-cols-3 lg:grid-cols-1 gap-1">
+            {[
+              ['cases', FolderOpen, 'Case Files'],
+              ['tracking', Radio, 'Telematics'],
+              ...(userRole === 'admin' ? [['vision', Eye, 'VisionFlow']] : []),
+            ].map(([view, Icon, label]) => (
+              <button
+                key={view}
+                onClick={() => setCurrentView(view)}
+                className={`w-full flex items-center justify-center lg:justify-start gap-2 px-3 py-2.5 rounded-lg text-xs lg:text-sm font-medium ${
+                  currentView === view
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-400 hover:bg-tactical-border/30 hover:text-white'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                <span>{label}</span>
               </button>
-            )}
+            ))}
           </nav>
         </div>
-        <div className="pt-4 border-t border-tactical-border space-y-3">
-          <div className="flex items-center gap-3 px-2">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center font-bold text-xs text-white">{userRole.substring(0, 2).toUpperCase()}</div>
-            <div className="truncate"><p className="text-xs font-semibold text-white truncate">TSHENOLO OPERATOR</p><p className="text-[10px] text-tactical-accent font-medium tracking-wider uppercase">{userRole}</p></div>
-          </div>
-          <button onClick={logout} className="w-full flex items-center justify-center gap-2 bg-red-950/20 border border-red-900/30 hover:bg-red-900/20 text-red-400 text-xs font-medium py-2 rounded-lg transition-colors"><LogOut className="w-3.5 h-3.5" /><span>Disconnect</span></button>
-        </div>
+
+        <button
+          onClick={logout}
+          className="flex items-center justify-center gap-2 bg-red-950/20 border border-red-900/30 text-red-400 text-xs font-medium px-3 lg:w-full py-2 rounded-lg"
+        >
+          <LogOut className="w-3.5 h-3.5" />
+          Disconnect
+        </button>
       </aside>
 
       <main className="flex-1 flex flex-col min-w-0">
-        <header className="h-16 border-b border-tactical-border bg-tactical-panel/40 backdrop-blur-sm px-8 flex items-center justify-between">
+        <header className="min-h-16 border-b border-tactical-border bg-tactical-panel/40 px-4 md:px-8 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <h1 className="text-lg font-semibold text-white capitalize">
-              {currentView === 'cases' ? 'Operational Registers' : currentView === 'tracking' ? 'Live Telematics Stream' : 'VisionFlow AI Surveillance'}
-            </h1>
-            <div className="flex items-center gap-1.5 bg-green-950/40 border border-green-800/30 text-green-400 px-2.5 py-0.5 rounded-full text-[11px] font-medium"><span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /><span>Telemetry Active</span></div>
+            <h1 className="text-lg font-semibold text-white">{viewTitle}</h1>
+            <div className="text-green-400 text-[11px] bg-green-950/40 border border-green-800/30 px-2.5 py-0.5 rounded-full">
+              API Connected
+            </div>
           </div>
-          <div className="flex items-center gap-3">
-            {currentView === 'cases' && (
-              <>
-                <button onClick={fetchCases} className="p-2 bg-tactical-panel border border-tactical-border rounded-lg text-gray-400 hover:text-white transition-colors"><RefreshCw className="w-4 h-4" /></button>
-                {userRole === 'admin' && (
-                  <button onClick={() => setIsModalOpen(true)} className="bg-tactical-accent hover:bg-blue-700 text-white text-xs font-semibold px-4 py-2 rounded-lg flex items-center gap-2 transition-colors shadow-lg">
-                    <Plus className="w-3.5 h-3.5" /><span>New Case File</span>
-                  </button>
-                )}
-              </>
-            )}
-          </div>
+
+          {currentView === 'cases' && (
+            <div className="flex items-center gap-3">
+              <button onClick={fetchCases} className="p-2 border border-tactical-border rounded-lg text-gray-400">
+                <RefreshCw className="w-4 h-4" />
+              </button>
+              {userRole === 'admin' && (
+                <button
+                  onClick={() => setIsModalOpen(true)}
+                  className="bg-tactical-accent text-white text-xs font-semibold px-4 py-2 rounded-lg flex items-center gap-2"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  New Case File
+                </button>
+              )}
+            </div>
+          )}
         </header>
-        <div className="flex-1 overflow-y-auto p-8 space-y-6">
-          {currentView === 'cases' ? <CaseDashboard cases={cases} loading={loading} error={error} fetchCases={fetchCases} userRole={userRole} /> : 
-           currentView === 'tracking' ? <Tracking /> : <VisionFlow />}
+
+        <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6">
+          {currentView === 'cases' ? (
+            <CaseDashboard cases={cases} loading={loading} error={error} />
+          ) : currentView === 'tracking' ? (
+            <Tracking />
+          ) : (
+            <VisionFlow />
+          )}
         </div>
       </main>
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-tactical-panel border border-tactical-border rounded-xl p-6 shadow-2xl relative">
-            <button onClick={() => setIsModalOpen(false)} className="absolute top-4 right-4 text-gray-400 hover:text-white"><X className="w-4 h-4" /></button>
-            <h3 className="text-md font-bold text-white uppercase tracking-wide mb-4">Initialize Investigative Case File</h3>
-            {formError && <div className="mb-4 p-3 bg-red-950/40 border border-red-800/40 text-red-200 text-xs rounded-lg">{formError}</div>}
+        <div className="fixed inset-0 z-[1000] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-tactical-panel border border-tactical-border rounded-xl p-6 relative">
+            <button
+              onClick={() => setIsModalOpen(false)}
+              className="absolute top-4 right-4 text-gray-400"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <h3 className="font-bold text-white uppercase tracking-wide mb-4">
+              Initialise Investigative Case File
+            </h3>
+            {formError && (
+              <div className="mb-4 p-3 bg-red-950/40 border border-red-800/40 text-red-200 text-xs rounded-lg">
+                {formError}
+              </div>
+            )}
             <form onSubmit={handleCreateCase} className="space-y-4">
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Investigation Title</label>
-                <input type="text" required value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Operation Gold Strike" className="w-full bg-tactical-bg border border-tactical-border rounded-lg py-2 px-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-tactical-accent" />
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Overview Parameters</label>
-                <textarea required rows={4} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Describe suspect behaviors..." className="w-full bg-tactical-bg border border-tactical-border rounded-lg py-2 px-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-tactical-accent resize-none text-xs" />
-              </div>
-              <button type="submit" disabled={submitLoading} className="w-full bg-tactical-accent hover:bg-blue-700 text-white rounded-lg py-2 text-xs font-bold flex items-center justify-center gap-2 transition-colors disabled:opacity-50 mt-2 shadow-lg">
-                {submitLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <span>Open Investigative Track</span>}
+              <input
+                required
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                placeholder="Investigation title"
+                className="w-full bg-tactical-bg border border-tactical-border rounded-lg py-2 px-3 text-sm text-white"
+              />
+              <textarea
+                required
+                rows={4}
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                placeholder="Operational overview"
+                className="w-full bg-tactical-bg border border-tactical-border rounded-lg py-2 px-3 text-sm text-white resize-none"
+              />
+              <button
+                type="submit"
+                disabled={submitLoading}
+                className="w-full bg-tactical-accent text-white rounded-lg py-2.5 text-xs font-bold flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {submitLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                {submitLoading ? 'Creating case...' : 'Open Investigative Track'}
               </button>
             </form>
           </div>
@@ -242,7 +364,7 @@ function MainConsole() {
 
 function AppContent() {
   const { token } = useAuth();
-  return !token ? <Login /> : <MainConsole />;
+  return token ? <MainConsole /> : <Login />;
 }
 
 export default function App() {
