@@ -28,20 +28,15 @@ def login_access_token(
             detail="Incorrect username or password"
         )
     
-    # 2. Crash-proof Direct Hashing Bypass for Master Admin Account
-    if operator.username == "tshenolo_admin":
-        if form_data.password != "GuardFlow2026!":
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Incorrect username or password"
-            )
-    else:
-        # Fallback for regular field agents using standard secure hashing
-        if not security.verify_password(form_data.password, operator.password_hash):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Incorrect username or password"
-            )
+   # 2. Verify the supplied password against the stored bcrypt hash
+   if not security.verify_password(
+    form_data.password,
+    operator.password_hash
+):
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="Incorrect username or password"
+    )
     
     # 3. Verify account accessibility state
     if not operator.is_active:
