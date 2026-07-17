@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './Login';
 import Tracking from './Tracking';
 import VisionFlow from './VisionFlow';
+import Operators from './Operators';
 import {
   Activity,
   AlertTriangle,
@@ -30,6 +31,7 @@ import {
   Shield,
   UploadCloud,
   UserCheck,
+  Users,
   Video,
   X,
 } from 'lucide-react';
@@ -630,6 +632,9 @@ function CaseDetailModal({
   evidenceLoading,
   evidenceError,
   evidenceUploading,
+  operators,
+  operatorsLoading,
+  operatorsError,
   onClose,
   onRetry,
   onRetryActivities,
@@ -645,6 +650,42 @@ function CaseDetailModal({
   const [editStatus, setEditStatus] = useState('open');
   const [editOperatorId, setEditOperatorId] = useState('');
   const [editError, setEditError] = useState('');
+
+  const assignedOperator = useMemo(
+    () =>
+      operators.find(
+        (operator) =>
+          operator.id === caseFile?.assigned_operator_id
+      ) || null,
+    [caseFile?.assigned_operator_id, operators]
+  );
+
+  const selectableOperators = useMemo(() => {
+    const visibleOperators = operators.filter(
+      (operator) =>
+        operator.is_active ||
+        operator.id === editOperatorId
+    );
+
+    if (
+      editOperatorId &&
+      !visibleOperators.some(
+        (operator) => operator.id === editOperatorId
+      )
+    ) {
+      return [
+        ...visibleOperators,
+        {
+          id: editOperatorId,
+          username: editOperatorId,
+          role: 'unknown',
+          is_active: false,
+        },
+      ];
+    }
+
+    return visibleOperators;
+  }, [editOperatorId, operators]);
 
   useEffect(() => {
     if (!caseFile) {
@@ -826,28 +867,43 @@ function CaseDetailModal({
                     htmlFor="edit-operator-id"
                     className="block text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-2"
                   >
-                    Assigned Operator ID
+                    Assigned Operator
                   </label>
 
-                  <input
+                  <select
                     id="edit-operator-id"
-                    type="text"
-                    disabled={saving}
+                    disabled={saving || operatorsLoading}
                     value={editOperatorId}
                     onChange={(event) =>
                       setEditOperatorId(event.target.value)
                     }
-                    placeholder="Leave blank to unassign"
-                    className="w-full bg-tactical-bg border border-tactical-border rounded-lg py-2.5 px-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-tactical-accent disabled:opacity-60"
-                  />
+                    className="w-full bg-tactical-bg border border-tactical-border rounded-lg py-2.5 px-3 text-sm text-white focus:outline-none focus:border-tactical-accent disabled:opacity-60"
+                  >
+                    <option value="">Unassigned</option>
+                    {selectableOperators.map((operator) => (
+                      <option
+                        key={operator.id}
+                        value={operator.id}
+                      >
+                        {operator.username} — {operator.role}
+                        {!operator.is_active ? ' (inactive)' : ''}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
-              <p className="text-[11px] text-gray-500">
-                Operator selection will become a searchable dropdown when the
-                operator-management module is added. For now, enter a valid
-                operator ID such as admin-001, or leave it blank to unassign.
-              </p>
+              {operatorsLoading && (
+                <p className="text-[11px] text-gray-500">
+                  Loading operator registry...
+                </p>
+              )}
+
+              {operatorsError && (
+                <p className="text-[11px] text-red-300">
+                  Operator list warning: {operatorsError}
+                </p>
+              )}
 
               <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 pt-2">
                 <button
@@ -925,7 +981,9 @@ function CaseDetailModal({
                   <div className="flex items-center gap-2 mt-2">
                     <UserCheck className="w-4 h-4 text-tactical-accent" />
                     <p className="text-sm font-semibold text-white break-all">
-                      {caseFile.assigned_operator_id || 'Unassigned'}
+                      {assignedOperator
+                        ? `${assignedOperator.username} (${assignedOperator.role})`
+                        : caseFile.assigned_operator_id || 'Unassigned'}
                     </p>
                   </div>
                 </div>
@@ -1376,6 +1434,7 @@ function CaseDashboard({
 
 function MainConsole() {
   const { token, user, logout } = useAuth();
+  const userRole = user?.role || 'field_agent';
 
   const [currentView, setCurrentView] = useState('cases');
   const [cases, setCases] = useState([]);
@@ -1402,10 +1461,17 @@ function MainConsole() {
     useState('');
   const [caseEvidenceUploading, setCaseEvidenceUploading] =
     useState(false);
+  const [operators, setOperators] = useState([]);
+  const [operatorsLoading, setOperatorsLoading] =
+    useState(false);
+  const [operatorsError, setOperatorsError] =
+    useState('');
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [newCaseOperatorId, setNewCaseOperatorId] =
+    useState(user?.id || '');
   const [submitLoading, setSubmitLoading] =
     useState(false);
   const [formError, setFormError] = useState('');
@@ -1473,6 +1539,40 @@ function MainConsole() {
   useEffect(() => {
     fetchCases();
   }, [fetchCases]);
+
+  const fetchOperators = useCallback(async () => {
+    if (userRole !== 'admin') {
+      setOperators([]);
+      setOperatorsError('');
+      return;
+    }
+
+    setOperatorsLoading(true);
+    setOperatorsError('');
+
+    try {
+      const data = await authenticatedRequest(
+        '/api/v1/operators/'
+      );
+
+      setOperators(normaliseList(data));
+    } catch (requestError) {
+      setOperators([]);
+      setOperatorsError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'Unable to load the operator registry.'
+      );
+    } finally {
+      setOperatorsLoading(false);
+    }
+  }, [authenticatedRequest, userRole]);
+
+  useEffect(() => {
+    if (userRole === 'admin') {
+      fetchOperators();
+    }
+  }, [fetchOperators, userRole, currentView]);
 
   const loadCaseActivities = useCallback(
     async (caseId) => {
@@ -1710,13 +1810,15 @@ function MainConsole() {
         body: JSON.stringify({
           title: title.trim(),
           description: description.trim(),
-          assigned_operator_id: user?.id || null,
+          assigned_operator_id:
+            newCaseOperatorId || null,
         }),
       });
 
       setIsModalOpen(false);
       setTitle('');
       setDescription('');
+      setNewCaseOperatorId(user?.id || '');
       await fetchCases();
     } catch (requestError) {
       setFormError(
@@ -1729,14 +1831,14 @@ function MainConsole() {
     }
   };
 
-  const userRole = user?.role || 'field_agent';
-
   const viewTitle =
     currentView === 'cases'
       ? 'Operational Registers'
       : currentView === 'tracking'
         ? 'Live Telematics Stream'
-        : 'VisionFlow AI Surveillance';
+        : currentView === 'vision'
+          ? 'VisionFlow AI Surveillance'
+          : 'Operator Administration';
 
   return (
     <div className="min-h-screen bg-tactical-bg flex flex-col lg:flex-row text-gray-100 font-sans relative">
@@ -1758,7 +1860,7 @@ function MainConsole() {
             </div>
           </div>
 
-          <nav className="grid grid-cols-3 lg:grid-cols-1 gap-1">
+          <nav className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-1 gap-1">
             <button
               type="button"
               onClick={() => setCurrentView('cases')}
@@ -1797,6 +1899,21 @@ function MainConsole() {
               >
                 <Eye className="w-4 h-4" />
                 <span>VisionFlow</span>
+              </button>
+            )}
+
+            {userRole === 'admin' && (
+              <button
+                type="button"
+                onClick={() => setCurrentView('operators')}
+                className={`w-full flex items-center justify-center lg:justify-start gap-2 lg:gap-3 px-3 py-2.5 rounded-lg text-xs lg:text-sm font-medium transition-colors ${
+                  currentView === 'operators'
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/10'
+                    : 'text-gray-400 hover:bg-tactical-border/30 hover:text-white'
+                }`}
+              >
+                <Users className="w-4 h-4" />
+                <span>Operators</span>
               </button>
             )}
           </nav>
@@ -1841,7 +1958,11 @@ function MainConsole() {
               {userRole === 'admin' && (
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(true)}
+                  onClick={() => {
+                    setNewCaseOperatorId(user?.id || '');
+                    setIsModalOpen(true);
+                    fetchOperators();
+                  }}
                   className="bg-tactical-accent hover:bg-blue-700 text-white text-xs font-semibold px-4 py-2 rounded-lg flex items-center gap-2 transition-colors shadow-lg"
                 >
                   <Plus className="w-3.5 h-3.5" />
@@ -1862,8 +1983,10 @@ function MainConsole() {
             />
           ) : currentView === 'tracking' ? (
             <Tracking />
-          ) : (
+          ) : currentView === 'vision' ? (
             <VisionFlow />
+          ) : (
+            <Operators />
           )}
         </div>
       </main>
@@ -1882,6 +2005,9 @@ function MainConsole() {
           evidenceLoading={caseEvidenceLoading}
           evidenceError={caseEvidenceError}
           evidenceUploading={caseEvidenceUploading}
+          operators={operators}
+          operatorsLoading={operatorsLoading}
+          operatorsError={operatorsError}
           onClose={closeCaseDetails}
           onRetry={() => openCaseDetails(selectedCaseId)}
           onRetryActivities={() =>
@@ -1965,6 +2091,43 @@ function MainConsole() {
                   placeholder="Describe the investigation..."
                   className="w-full bg-tactical-bg border border-tactical-border rounded-lg py-2 px-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-tactical-accent resize-none disabled:opacity-60"
                 />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="new-case-operator"
+                  className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5"
+                >
+                  Assigned Operator
+                </label>
+
+                <select
+                  id="new-case-operator"
+                  disabled={submitLoading || operatorsLoading}
+                  value={newCaseOperatorId}
+                  onChange={(event) =>
+                    setNewCaseOperatorId(event.target.value)
+                  }
+                  className="w-full bg-tactical-bg border border-tactical-border rounded-lg py-2 px-3 text-sm text-white focus:outline-none focus:border-tactical-accent disabled:opacity-60"
+                >
+                  <option value="">Unassigned</option>
+                  {operators
+                    .filter((operator) => operator.is_active)
+                    .map((operator) => (
+                      <option
+                        key={operator.id}
+                        value={operator.id}
+                      >
+                        {operator.username} — {operator.role}
+                      </option>
+                    ))}
+                </select>
+
+                {operatorsError && (
+                  <p className="text-[10px] text-red-300 mt-1.5">
+                    Operator list warning: {operatorsError}
+                  </p>
+                )}
               </div>
 
               <button
