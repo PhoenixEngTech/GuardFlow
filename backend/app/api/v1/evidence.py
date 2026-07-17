@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_operator
 from app.core.database import get_db
+from app.core.permissions import ensure_case_access
 from app.models.activity import CaseActivity
 from app.models.case import CaseFile
 from app.models.evidence import CaseEvidence
@@ -83,6 +84,24 @@ def get_evidence_or_404(
     return evidence
 
 
+def validate_evidence_access(
+    evidence: CaseEvidence,
+    current_operator: Operator,
+    db: Session,
+) -> CaseFile:
+    case_file = get_case_or_404(
+        evidence.case_id,
+        db,
+    )
+
+    ensure_case_access(
+        current_operator,
+        case_file,
+    )
+
+    return case_file
+
+
 @router.post(
     "/cases/{case_id}",
     response_model=CaseEvidenceOut,
@@ -98,7 +117,15 @@ async def upload_case_evidence(
         get_current_operator
     ),
 ) -> Any:
-    case_file = get_case_or_404(case_id, db)
+    case_file = get_case_or_404(
+        case_id,
+        db,
+    )
+
+    ensure_case_access(
+        current_operator,
+        case_file,
+    )
 
     evidence_type = evidence_type.strip().lower()
 
@@ -145,7 +172,9 @@ async def upload_case_evidence(
 
                 if total_size > MAX_FILE_SIZE:
                     raise HTTPException(
-                        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                        status_code=(
+                            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE
+                        ),
                         detail=(
                             "Evidence file exceeds the "
                             "100 MB upload limit."
@@ -154,6 +183,12 @@ async def upload_case_evidence(
 
                 file_hash.update(chunk)
                 output_file.write(chunk)
+
+        if total_size == 0:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Empty evidence files are not permitted.",
+            )
 
     except Exception:
         if storage_path.exists():
@@ -236,7 +271,15 @@ def list_case_evidence(
         get_current_operator
     ),
 ) -> Any:
-    get_case_or_404(case_id, db)
+    case_file = get_case_or_404(
+        case_id,
+        db,
+    )
+
+    ensure_case_access(
+        current_operator,
+        case_file,
+    )
 
     return (
         db.query(CaseEvidence)
@@ -261,10 +304,18 @@ def read_evidence_metadata(
         get_current_operator
     ),
 ) -> Any:
-    return get_evidence_or_404(
+    evidence = get_evidence_or_404(
         evidence_id,
         db,
     )
+
+    validate_evidence_access(
+        evidence,
+        current_operator,
+        db,
+    )
+
+    return evidence
 
 
 @router.get(
@@ -279,6 +330,12 @@ def download_evidence_file(
 ) -> FileResponse:
     evidence = get_evidence_or_404(
         evidence_id,
+        db,
+    )
+
+    validate_evidence_access(
+        evidence,
+        current_operator,
         db,
     )
 
