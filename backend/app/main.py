@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.database import Base, engine
 
-# Register all database models before creating tables.
+# Register database models before creating tables.
 import app.models.user
 import app.models.case
 import app.models.telemetry
@@ -12,7 +12,6 @@ import app.models.vision
 import app.models.activity
 import app.models.evidence
 
-# Create any missing database tables.
 Base.metadata.create_all(bind=engine)
 
 # Import API routers.
@@ -20,6 +19,7 @@ from app.api.v1 import (
     auth,
     cases,
     evidence,
+    operators,
     tracking,
     vision,
 )
@@ -69,6 +69,12 @@ app.include_router(
     evidence.router,
     prefix="/api/v1/evidence",
     tags=["Evidence Management"],
+)
+
+app.include_router(
+    operators.router,
+    prefix="/api/v1/operators",
+    tags=["Operator Management"],
 )
 
 
