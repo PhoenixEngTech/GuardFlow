@@ -9,18 +9,28 @@ import {
   Briefcase,
   CheckCircle,
   Clock,
+  Download,
+  ExternalLink,
   Eye,
+  FileText,
   FolderOpen,
+  HardDrive,
+  Hash,
+  Image as ImageIcon,
   Loader2,
   LogOut,
+  Music,
+  Paperclip,
   Pencil,
   Plus,
-  Save,
   Radio,
   RefreshCw,
+  Save,
   Search,
   Shield,
+  UploadCloud,
   UserCheck,
+  Video,
   X,
 } from 'lucide-react';
 
@@ -75,6 +85,7 @@ function formatEventType(eventType) {
     case_updated: 'Case Updated',
     status_changed: 'Status Changed',
     operator_reassigned: 'Operator Reassigned',
+    evidence_uploaded: 'Evidence Uploaded',
   };
 
   return labels[eventType] ||
@@ -88,7 +99,522 @@ function formatChangeValue(value) {
     return 'None';
   }
 
+  if (typeof value === 'object') {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  }
+
   return String(value);
+}
+
+function formatFileSize(bytes) {
+  const numericBytes = Number(bytes);
+
+  if (!Number.isFinite(numericBytes) || numericBytes < 0) {
+    return 'Unknown size';
+  }
+
+  if (numericBytes < 1024) {
+    return `${numericBytes} B`;
+  }
+
+  const units = ['KB', 'MB', 'GB', 'TB'];
+  let size = numericBytes / 1024;
+  let unitIndex = 0;
+
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+
+  return `${size.toFixed(size >= 10 ? 1 : 2)} ${units[unitIndex]}`;
+}
+
+function EvidencePanel({
+  evidenceItems,
+  loading,
+  error,
+  uploading,
+  onRefresh,
+  onUpload,
+  onDownload,
+  onLoadPreview,
+}) {
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [evidenceType, setEvidenceType] = useState('document');
+  const [description, setDescription] = useState('');
+  const [formError, setFormError] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [inputKey, setInputKey] = useState(0);
+  const [busyEvidenceId, setBusyEvidenceId] = useState(null);
+
+  const [previewItem, setPreviewItem] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState('');
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState('');
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
+
+  const getEvidenceIcon = (type) => {
+    const normalizedType = String(type || '').toLowerCase();
+
+    if (normalizedType === 'photo') {
+      return ImageIcon;
+    }
+
+    if (normalizedType === 'video') {
+      return Video;
+    }
+
+    if (normalizedType === 'audio') {
+      return Music;
+    }
+
+    return FileText;
+  };
+
+  const canPreview = (item) => {
+    const contentType = String(item?.content_type || '').toLowerCase();
+
+    return (
+      contentType.startsWith('image/') ||
+      contentType.startsWith('video/') ||
+      contentType.startsWith('audio/') ||
+      contentType === 'application/pdf'
+    );
+  };
+
+  const closePreview = () => {
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
+
+    setPreviewItem(null);
+    setPreviewUrl('');
+    setPreviewLoading(false);
+    setPreviewError('');
+  };
+
+  const handlePreview = async (item) => {
+    setActionError('');
+    setPreviewItem(item);
+    setPreviewLoading(true);
+    setPreviewError('');
+
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+      setPreviewUrl('');
+    }
+
+    try {
+      const blob = await onLoadPreview(item);
+      const objectUrl = URL.createObjectURL(blob);
+      setPreviewUrl(objectUrl);
+    } catch (requestError) {
+      setPreviewError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'Unable to preview this evidence file.'
+      );
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const handleDownload = async (item) => {
+    setActionError('');
+    setBusyEvidenceId(item.id);
+
+    try {
+      await onDownload(item);
+    } catch (requestError) {
+      setActionError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'Unable to download this evidence file.'
+      );
+    } finally {
+      setBusyEvidenceId(null);
+    }
+  };
+
+  const handleUpload = async (event) => {
+    event.preventDefault();
+    setFormError('');
+    setActionError('');
+
+    if (!selectedFile) {
+      setFormError('Select an evidence file before uploading.');
+      return;
+    }
+
+    const maximumFileSize = 100 * 1024 * 1024;
+
+    if (selectedFile.size > maximumFileSize) {
+      setFormError('The selected file exceeds the 100 MB upload limit.');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('evidence_type', evidenceType);
+    formData.append('description', description.trim());
+    formData.append('file', selectedFile);
+
+    try {
+      await onUpload(formData);
+      setSelectedFile(null);
+      setEvidenceType('document');
+      setDescription('');
+      setInputKey((currentKey) => currentKey + 1);
+    } catch (requestError) {
+      setFormError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'Unable to upload the evidence file.'
+      );
+    }
+  };
+
+  return (
+    <>
+      <section className="bg-tactical-bg border border-tactical-border rounded-xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-tactical-border flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Paperclip className="w-4 h-4 text-tactical-accent" />
+            <div>
+              <p className="text-xs font-bold text-white uppercase tracking-wider">
+                Case Evidence Vault
+              </p>
+              <p className="text-[10px] text-gray-500 mt-0.5">
+                Persistent files with SHA-256 integrity records
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onRefresh}
+            disabled={loading}
+            className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-tactical-border/40 transition-colors disabled:opacity-50"
+            aria-label="Refresh case evidence"
+          >
+            <RefreshCw
+              className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`}
+            />
+          </button>
+        </div>
+
+        <div className="p-4 space-y-5">
+          <form
+            onSubmit={handleUpload}
+            className="bg-tactical-panel/35 border border-tactical-border/70 rounded-xl p-4 space-y-4"
+          >
+            <div className="flex items-center gap-2">
+              <UploadCloud className="w-4 h-4 text-blue-400" />
+              <p className="text-xs font-bold text-white uppercase tracking-wider">
+                Upload New Evidence
+              </p>
+            </div>
+
+            {formError && (
+              <div className="p-3 bg-red-950/30 border border-red-800/40 text-red-200 text-xs rounded-lg">
+                {formError}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label
+                  htmlFor="evidence-type"
+                  className="block text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-2"
+                >
+                  Evidence Classification
+                </label>
+
+                <select
+                  id="evidence-type"
+                  disabled={uploading}
+                  value={evidenceType}
+                  onChange={(event) => setEvidenceType(event.target.value)}
+                  className="w-full bg-tactical-bg border border-tactical-border rounded-lg py-2.5 px-3 text-sm text-white focus:outline-none focus:border-tactical-accent disabled:opacity-60"
+                >
+                  <option value="document">Document</option>
+                  <option value="photo">Photo</option>
+                  <option value="video">Video</option>
+                  <option value="audio">Audio</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="evidence-file"
+                  className="block text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-2"
+                >
+                  Select File
+                </label>
+
+                <input
+                  key={inputKey}
+                  id="evidence-file"
+                  type="file"
+                  required
+                  disabled={uploading}
+                  onChange={(event) =>
+                    setSelectedFile(event.target.files?.[0] || null)
+                  }
+                  className="block w-full text-xs text-gray-400 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-600/15 file:px-3 file:py-2 file:text-xs file:font-bold file:text-blue-300 hover:file:bg-blue-600/25 disabled:opacity-60"
+                />
+
+                {selectedFile && (
+                  <p className="text-[10px] text-gray-500 mt-1.5">
+                    {selectedFile.name} · {formatFileSize(selectedFile.size)}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label
+                htmlFor="evidence-description"
+                className="block text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-2"
+              >
+                Evidence Description
+              </label>
+
+              <textarea
+                id="evidence-description"
+                rows={2}
+                disabled={uploading}
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                placeholder="Describe the file and its relevance to the investigation..."
+                className="w-full bg-tactical-bg border border-tactical-border rounded-lg py-2.5 px-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-tactical-accent resize-none disabled:opacity-60"
+              />
+            </div>
+
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <p className="text-[10px] text-gray-500">
+                Maximum file size: 100 MB. Files are stored on the persistent
+                GuardFlow evidence volume.
+              </p>
+
+              <button
+                type="submit"
+                disabled={uploading || !selectedFile}
+                className="px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+              >
+                {uploading ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Securing evidence...</span>
+                  </>
+                ) : (
+                  <>
+                    <UploadCloud className="w-3.5 h-3.5" />
+                    <span>Upload Evidence</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+
+          {actionError && (
+            <div className="p-3 bg-red-950/20 border border-red-800/30 text-red-300 text-xs rounded-lg">
+              {actionError}
+            </div>
+          )}
+
+          {loading ? (
+            <div className="py-8 flex flex-col items-center justify-center gap-2 text-gray-400">
+              <Loader2 className="w-5 h-5 animate-spin text-tactical-accent" />
+              <p className="text-xs">Loading evidence records...</p>
+            </div>
+          ) : error ? (
+            <div className="p-3 bg-red-950/20 border border-red-800/30 text-red-300 text-xs rounded-lg">
+              {error}
+            </div>
+          ) : evidenceItems.length === 0 ? (
+            <div className="py-8 text-center text-gray-500">
+              <HardDrive className="w-7 h-7 mx-auto mb-2 text-gray-600" />
+              <p className="text-xs">
+                No evidence files have been attached to this case.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {evidenceItems.map((item) => {
+                const EvidenceIcon = getEvidenceIcon(item.evidence_type);
+                const isBusy = busyEvidenceId === item.id;
+
+                return (
+                  <article
+                    key={item.id}
+                    className="bg-tactical-panel/35 border border-tactical-border/70 rounded-xl p-4"
+                  >
+                    <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
+                      <div className="flex items-start gap-3 min-w-0">
+                        <div className="w-10 h-10 shrink-0 rounded-lg bg-blue-600/10 border border-blue-500/20 flex items-center justify-center text-blue-300">
+                          <EvidenceIcon className="w-5 h-5" />
+                        </div>
+
+                        <div className="min-w-0">
+                          <p
+                            className="text-sm font-semibold text-white break-all"
+                            title={item.original_filename}
+                          >
+                            {item.original_filename}
+                          </p>
+
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-[10px] text-gray-500">
+                            <span className="uppercase font-bold text-tactical-accent">
+                              {item.evidence_type}
+                            </span>
+                            <span>{formatFileSize(item.file_size)}</span>
+                            <span>{formatDateTime(item.created_at)}</span>
+                            <span>
+                              Operator: {item.uploaded_by_operator_id || 'System'}
+                            </span>
+                          </div>
+
+                          {item.description && (
+                            <p className="text-xs text-gray-400 leading-5 mt-2">
+                              {item.description}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        {canPreview(item) && (
+                          <button
+                            type="button"
+                            onClick={() => handlePreview(item)}
+                            className="px-3 py-2 rounded-lg border border-tactical-border text-gray-300 hover:text-white hover:border-blue-500/40 text-xs font-semibold flex items-center gap-2 transition-colors"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                            <span>Preview</span>
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => handleDownload(item)}
+                          disabled={isBusy}
+                          className="px-3 py-2 rounded-lg bg-blue-600/10 border border-blue-500/30 text-blue-300 hover:bg-blue-600 hover:text-white text-xs font-semibold flex items-center gap-2 transition-colors disabled:opacity-50"
+                        >
+                          {isBusy ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Download className="w-3.5 h-3.5" />
+                          )}
+                          <span>Download</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 pt-3 border-t border-tactical-border/60 flex items-start gap-2">
+                      <Hash className="w-3.5 h-3.5 text-gray-500 mt-0.5 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-[9px] uppercase tracking-wider font-bold text-gray-600">
+                          SHA-256 Integrity Hash
+                        </p>
+                        <p className="text-[10px] font-mono text-gray-500 mt-1 break-all">
+                          {item.sha256_hash}
+                        </p>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {previewItem && (
+        <div className="fixed inset-0 z-[1200] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-5xl max-h-[92vh] bg-tactical-panel border border-tactical-border rounded-2xl overflow-hidden shadow-2xl flex flex-col">
+            <div className="px-5 py-4 border-b border-tactical-border flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-[10px] uppercase tracking-wider font-bold text-tactical-accent">
+                  Evidence Preview
+                </p>
+                <p className="text-sm font-semibold text-white mt-1 truncate">
+                  {previewItem.original_filename}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={closePreview}
+                className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-tactical-border/40 transition-colors"
+                aria-label="Close evidence preview"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 min-h-0 overflow-auto p-4 bg-black/40">
+              {previewLoading ? (
+                <div className="min-h-[420px] flex flex-col items-center justify-center gap-3 text-gray-400">
+                  <Loader2 className="w-7 h-7 animate-spin text-tactical-accent" />
+                  <p className="text-sm">Loading protected evidence...</p>
+                </div>
+              ) : previewError ? (
+                <div className="min-h-[420px] flex items-center justify-center">
+                  <div className="max-w-md p-4 bg-red-950/30 border border-red-800/40 text-red-200 text-sm rounded-xl text-center">
+                    {previewError}
+                  </div>
+                </div>
+              ) : previewUrl ? (
+                <>
+                  {String(previewItem.content_type).startsWith('image/') && (
+                    <img
+                      src={previewUrl}
+                      alt={previewItem.original_filename}
+                      className="max-w-full max-h-[72vh] mx-auto object-contain rounded-lg"
+                    />
+                  )}
+
+                  {String(previewItem.content_type).startsWith('video/') && (
+                    <video
+                      src={previewUrl}
+                      controls
+                      className="w-full max-h-[72vh] rounded-lg bg-black"
+                    />
+                  )}
+
+                  {String(previewItem.content_type).startsWith('audio/') && (
+                    <div className="min-h-[420px] flex items-center justify-center">
+                      <audio src={previewUrl} controls className="w-full max-w-xl" />
+                    </div>
+                  )}
+
+                  {previewItem.content_type === 'application/pdf' && (
+                    <iframe
+                      src={previewUrl}
+                      title={previewItem.original_filename}
+                      className="w-full h-[72vh] rounded-lg bg-white"
+                    />
+                  )}
+                </>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
 }
 
 function CaseDetailModal({
@@ -100,9 +626,17 @@ function CaseDetailModal({
   activities,
   activitiesLoading,
   activitiesError,
+  evidenceItems,
+  evidenceLoading,
+  evidenceError,
+  evidenceUploading,
   onClose,
   onRetry,
   onRetryActivities,
+  onRetryEvidence,
+  onUploadEvidence,
+  onDownloadEvidence,
+  onLoadEvidencePreview,
   onSave,
 }) {
   const [isEditing, setIsEditing] = useState(false);
@@ -420,6 +954,17 @@ function CaseDetailModal({
                 </p>
               </div>
 
+              <EvidencePanel
+                evidenceItems={evidenceItems}
+                loading={evidenceLoading}
+                error={evidenceError}
+                uploading={evidenceUploading}
+                onRefresh={onRetryEvidence}
+                onUpload={onUploadEvidence}
+                onDownload={onDownloadEvidence}
+                onLoadPreview={onLoadEvidencePreview}
+              />
+
               <section className="bg-tactical-bg border border-tactical-border rounded-xl overflow-hidden">
                 <div className="px-4 py-3 border-b border-tactical-border flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
@@ -516,27 +1061,51 @@ function CaseDetailModal({
 
                             {changes.length > 0 && (
                               <div className="mt-3 grid grid-cols-1 gap-2">
-                                {changes.map(([field, values]) => (
-                                  <div
-                                    key={field}
-                                    className="bg-tactical-panel/40 border border-tactical-border/70 rounded-lg p-2.5"
-                                  >
-                                    <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500">
-                                      {field.replace(/_/g, ' ')}
-                                    </p>
-                                    <p className="text-[11px] text-gray-400 mt-1 break-words">
-                                      <span className="text-red-300/80">
-                                        {formatChangeValue(values?.from)}
-                                      </span>
-                                      <span className="mx-2 text-gray-600">
-                                        →
-                                      </span>
-                                      <span className="text-green-300">
-                                        {formatChangeValue(values?.to)}
-                                      </span>
-                                    </p>
-                                  </div>
-                                ))}
+                                {changes.map(([field, values]) => {
+                                  const isTransition =
+                                    values &&
+                                    typeof values === 'object' &&
+                                    !Array.isArray(values) &&
+                                    (
+                                      Object.prototype.hasOwnProperty.call(
+                                        values,
+                                        'from'
+                                      ) ||
+                                      Object.prototype.hasOwnProperty.call(
+                                        values,
+                                        'to'
+                                      )
+                                    );
+
+                                  return (
+                                    <div
+                                      key={field}
+                                      className="bg-tactical-panel/40 border border-tactical-border/70 rounded-lg p-2.5"
+                                    >
+                                      <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500">
+                                        {field.replace(/_/g, ' ')}
+                                      </p>
+
+                                      {isTransition ? (
+                                        <p className="text-[11px] text-gray-400 mt-1 break-words">
+                                          <span className="text-red-300/80">
+                                            {formatChangeValue(values.from)}
+                                          </span>
+                                          <span className="mx-2 text-gray-600">
+                                            →
+                                          </span>
+                                          <span className="text-green-300">
+                                            {formatChangeValue(values.to)}
+                                          </span>
+                                        </p>
+                                      ) : (
+                                        <p className="text-[11px] text-gray-300 mt-1 break-words">
+                                          {formatChangeValue(values)}
+                                        </p>
+                                      )}
+                                    </div>
+                                  );
+                                })}
                               </div>
                             )}
                           </div>
@@ -826,6 +1395,13 @@ function MainConsole() {
     useState(false);
   const [caseActivitiesError, setCaseActivitiesError] =
     useState('');
+  const [caseEvidence, setCaseEvidence] = useState([]);
+  const [caseEvidenceLoading, setCaseEvidenceLoading] =
+    useState(false);
+  const [caseEvidenceError, setCaseEvidenceError] =
+    useState('');
+  const [caseEvidenceUploading, setCaseEvidenceUploading] =
+    useState(false);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [title, setTitle] = useState('');
@@ -836,12 +1412,16 @@ function MainConsole() {
 
   const authenticatedRequest = useCallback(
     async (path, options = {}) => {
+      const isFormDataBody =
+        typeof FormData !== 'undefined' &&
+        options.body instanceof FormData;
+
       const response = await fetch(`${API_URL}${path}`, {
         ...options,
         headers: {
           Accept: 'application/json',
           Authorization: `Bearer ${token}`,
-          ...(options.body
+          ...(options.body && !isFormDataBody
             ? { 'Content-Type': 'application/json' }
             : {}),
           ...(options.headers || {}),
@@ -924,6 +1504,116 @@ function MainConsole() {
     [authenticatedRequest]
   );
 
+  const loadCaseEvidence = useCallback(
+    async (caseId) => {
+      if (!caseId) {
+        setCaseEvidence([]);
+        return;
+      }
+
+      setCaseEvidenceLoading(true);
+      setCaseEvidenceError('');
+
+      try {
+        const data = await authenticatedRequest(
+          `/api/v1/evidence/cases/${caseId}`
+        );
+
+        setCaseEvidence(normaliseList(data));
+      } catch (requestError) {
+        setCaseEvidence([]);
+        setCaseEvidenceError(
+          requestError instanceof Error
+            ? requestError.message
+            : 'Unable to load the case evidence vault.'
+        );
+      } finally {
+        setCaseEvidenceLoading(false);
+      }
+    },
+    [authenticatedRequest]
+  );
+
+  const fetchEvidenceBlob = useCallback(
+    async (evidenceItem) => {
+      const response = await fetch(
+        `${API_URL}/api/v1/evidence/${evidenceItem.id}/download`,
+        {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (response.status === 401) {
+        logout();
+        throw new Error(
+          'Your session expired. Please sign in again.'
+        );
+      }
+
+      if (!response.ok) {
+        const data = await readResponse(response);
+
+        throw new Error(
+          data?.detail ||
+            `Evidence request failed with ${response.status}.`
+        );
+      }
+
+      return response.blob();
+    },
+    [logout, token]
+  );
+
+  const downloadCaseEvidence = useCallback(
+    async (evidenceItem) => {
+      const blob = await fetchEvidenceBlob(evidenceItem);
+      const objectUrl = URL.createObjectURL(blob);
+      const downloadLink = document.createElement('a');
+
+      downloadLink.href = objectUrl;
+      downloadLink.download =
+        evidenceItem.original_filename || 'guardflow-evidence';
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      downloadLink.remove();
+
+      window.setTimeout(() => {
+        URL.revokeObjectURL(objectUrl);
+      }, 1000);
+    },
+    [fetchEvidenceBlob]
+  );
+
+  const uploadCaseEvidence = async (formData) => {
+    if (!selectedCaseId) {
+      throw new Error('No case file is currently selected.');
+    }
+
+    setCaseEvidenceUploading(true);
+
+    try {
+      const uploadedEvidence = await authenticatedRequest(
+        `/api/v1/evidence/cases/${selectedCaseId}`,
+        {
+          method: 'POST',
+          body: formData,
+        }
+      );
+
+      await Promise.all([
+        loadCaseEvidence(selectedCaseId),
+        loadCaseActivities(selectedCaseId),
+      ]);
+
+      return uploadedEvidence;
+    } finally {
+      setCaseEvidenceUploading(false);
+    }
+  };
+
   const openCaseDetails = useCallback(
     async (caseId) => {
       setSelectedCaseId(caseId);
@@ -932,8 +1622,11 @@ function MainConsole() {
       setCaseDetailLoading(true);
       setCaseActivities([]);
       setCaseActivitiesError('');
+      setCaseEvidence([]);
+      setCaseEvidenceError('');
 
       loadCaseActivities(caseId);
+      loadCaseEvidence(caseId);
 
       try {
         const data = await authenticatedRequest(
@@ -951,7 +1644,11 @@ function MainConsole() {
         setCaseDetailLoading(false);
       }
     },
-    [authenticatedRequest, loadCaseActivities]
+    [
+      authenticatedRequest,
+      loadCaseActivities,
+      loadCaseEvidence,
+    ]
   );
 
   const closeCaseDetails = () => {
@@ -963,6 +1660,10 @@ function MainConsole() {
     setCaseActivities([]);
     setCaseActivitiesError('');
     setCaseActivitiesLoading(false);
+    setCaseEvidence([]);
+    setCaseEvidenceError('');
+    setCaseEvidenceLoading(false);
+    setCaseEvidenceUploading(false);
   };
 
   const updateCaseDetails = async (updates) => {
@@ -1177,11 +1878,21 @@ function MainConsole() {
           activities={caseActivities}
           activitiesLoading={caseActivitiesLoading}
           activitiesError={caseActivitiesError}
+          evidenceItems={caseEvidence}
+          evidenceLoading={caseEvidenceLoading}
+          evidenceError={caseEvidenceError}
+          evidenceUploading={caseEvidenceUploading}
           onClose={closeCaseDetails}
           onRetry={() => openCaseDetails(selectedCaseId)}
           onRetryActivities={() =>
             loadCaseActivities(selectedCaseId)
           }
+          onRetryEvidence={() =>
+            loadCaseEvidence(selectedCaseId)
+          }
+          onUploadEvidence={uploadCaseEvidence}
+          onDownloadEvidence={downloadCaseEvidence}
+          onLoadEvidencePreview={fetchEvidenceBlob}
           onSave={updateCaseDetails}
         />
       )}
