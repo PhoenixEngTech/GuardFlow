@@ -11,6 +11,7 @@ from pydantic import (
 
 
 OperatorRole = Literal[
+    "master",
     "admin",
     "dispatcher",
     "investigator",
