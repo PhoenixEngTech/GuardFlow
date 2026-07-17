@@ -21,7 +21,18 @@ export default function Login() {
 
            try {
       // PROXIED RELATIVE LINK: Bypasses raw IP numbers and domain names entirely
-      const response = await fetch('/api/v1/login/access-token', {
+     const API_URL = import.meta.env.VITE_API_URL || '';
+
+const response = await fetch(
+  `${API_URL}/api/v1/auth/login/access-token`,
+  {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: formData,
+  }
+);
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: formData,
