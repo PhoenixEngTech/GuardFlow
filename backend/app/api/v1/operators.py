@@ -20,13 +20,27 @@ from app.schemas.user import (
 router = APIRouter()
 
 
-def require_admin(
+ROLE_LEVELS = {
+    "investigator": 1,
+    "dispatcher": 2,
+    "admin": 3,
+    "master": 4,
+}
+
+
+def require_management_access(
     current_operator: Operator,
 ) -> None:
-    if current_operator.role != "admin":
+    if current_operator.role not in {
+        "master",
+        "admin",
+    }:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Administrator access is required.",
+            detail=(
+                "Administrator or master access "
+                "is required."
+            ),
         )
 
 
@@ -49,13 +63,13 @@ def get_operator_or_404(
     return operator
 
 
-def active_admin_count(
+def active_master_count(
     db: Session,
 ) -> int:
     return (
         db.query(Operator)
         .filter(
-            Operator.role == "admin",
+            Operator.role == "master",
             Operator.is_active.is_(True),
         )
         .count()
@@ -80,7 +94,10 @@ def ensure_unique_username(
     if query.first():
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="That username is already registered.",
+            detail=(
+                "That username is already "
+                "registered."
+            ),
         )
 
 
@@ -102,7 +119,62 @@ def ensure_unique_email(
     if query.first():
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="That email address is already registered.",
+            detail=(
+                "That email address is already "
+                "registered."
+            ),
+        )
+
+
+def ensure_actor_can_manage_target(
+    current_operator: Operator,
+    target_operator: Operator,
+) -> None:
+    """
+    Masters can manage every operator.
+
+    Administrators can manage only dispatchers
+    and investigators.
+    """
+
+    if current_operator.role == "master":
+        return
+
+    if target_operator.role in {
+        "master",
+        "admin",
+    }:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Administrators cannot manage "
+                "master or administrator profiles."
+            ),
+        )
+
+
+def ensure_role_can_be_assigned(
+    current_operator: Operator,
+    requested_role: str,
+) -> None:
+    """
+    Only a master may create or assign the
+    master and administrator roles.
+    """
+
+    if current_operator.role == "master":
+        return
+
+    if requested_role in {
+        "master",
+        "admin",
+    }:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Only a master operator may assign "
+                "administrator or master authority."
+            ),
         )
 
 
@@ -116,7 +188,9 @@ def list_operators(
         get_current_operator
     ),
 ) -> Any:
-    require_admin(current_operator)
+    require_management_access(
+        current_operator
+    )
 
     return (
         db.query(Operator)
@@ -139,12 +213,21 @@ def read_operator(
         get_current_operator
     ),
 ) -> Any:
-    require_admin(current_operator)
+    require_management_access(
+        current_operator
+    )
 
-    return get_operator_or_404(
+    operator = get_operator_or_404(
         operator_id,
         db,
     )
+
+    ensure_actor_can_manage_target(
+        current_operator,
+        operator,
+    )
+
+    return operator
 
 
 @router.post(
@@ -159,10 +242,21 @@ def create_operator(
         get_current_operator
     ),
 ) -> Any:
-    require_admin(current_operator)
+    require_management_access(
+        current_operator
+    )
+
+    ensure_role_can_be_assigned(
+        current_operator,
+        operator_in.role,
+    )
 
     username = operator_in.username.strip()
-    email = str(operator_in.email).strip().lower()
+    email = (
+        str(operator_in.email)
+        .strip()
+        .lower()
+    )
 
     ensure_unique_username(
         username,
@@ -178,8 +272,10 @@ def create_operator(
         id=str(uuid.uuid4()),
         username=username,
         email=email,
-        password_hash=security.get_password_hash(
-            operator_in.password
+        password_hash=(
+            security.get_password_hash(
+                operator_in.password
+            )
         ),
         role=operator_in.role,
         is_active=operator_in.is_active,
@@ -204,40 +300,23 @@ def update_operator(
         get_current_operator
     ),
 ) -> Any:
-    require_admin(current_operator)
+    require_management_access(
+        current_operator
+    )
 
     operator = get_operator_or_404(
         operator_id,
         db,
     )
 
+    ensure_actor_can_manage_target(
+        current_operator,
+        operator,
+    )
+
     update_data = operator_in.model_dump(
         exclude_unset=True
     )
-
-    if "username" in update_data:
-        username = update_data["username"].strip()
-
-        ensure_unique_username(
-            username,
-            db,
-            exclude_operator_id=operator.id,
-        )
-
-        operator.username = username
-
-    if "email" in update_data:
-        email = str(
-            update_data["email"]
-        ).strip().lower()
-
-        ensure_unique_email(
-            email,
-            db,
-            exclude_operator_id=operator.id,
-        )
-
-        operator.email = email
 
     requested_role = update_data.get(
         "role",
@@ -249,46 +328,94 @@ def update_operator(
         operator.is_active,
     )
 
-    removing_active_admin = (
-        operator.role == "admin"
+    ensure_role_can_be_assigned(
+        current_operator,
+        requested_role,
+    )
+
+    if operator.id == current_operator.id:
+        if (
+            "role" in update_data
+            and requested_role
+            != current_operator.role
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "You cannot change your own "
+                    "authority level."
+                ),
+            )
+
+        if (
+            "is_active" in update_data
+            and requested_active is False
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "You cannot deactivate your own "
+                    "operator profile."
+                ),
+            )
+
+    removing_active_master = (
+        operator.role == "master"
         and operator.is_active
         and (
-            requested_role != "admin"
+            requested_role != "master"
             or requested_active is False
         )
     )
 
     if (
-        removing_active_admin
-        and active_admin_count(db) <= 1
+        removing_active_master
+        and active_master_count(db) <= 1
     ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
                 "GuardFlow must retain at least one "
-                "active administrator."
+                "active master operator."
             ),
         )
 
-    if (
-        operator.id == current_operator.id
-        and requested_active is False
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=(
-                "You cannot deactivate your own "
-                "operator profile."
-            ),
+    if "username" in update_data:
+        username = (
+            update_data["username"]
+            .strip()
         )
+
+        ensure_unique_username(
+            username,
+            db,
+            exclude_operator_id=operator.id,
+        )
+
+        operator.username = username
+
+    if "email" in update_data:
+        email = (
+            str(update_data["email"])
+            .strip()
+            .lower()
+        )
+
+        ensure_unique_email(
+            email,
+            db,
+            exclude_operator_id=operator.id,
+        )
+
+        operator.email = email
 
     if "role" in update_data:
-        operator.role = update_data["role"]
+        operator.role = requested_role
 
     if "is_active" in update_data:
-        operator.is_active = update_data[
-            "is_active"
-        ]
+        operator.is_active = (
+            requested_active
+        )
 
     db.commit()
     db.refresh(operator)
@@ -308,11 +435,18 @@ def reset_operator_password(
         get_current_operator
     ),
 ) -> Any:
-    require_admin(current_operator)
+    require_management_access(
+        current_operator
+    )
 
     operator = get_operator_or_404(
         operator_id,
         db,
+    )
+
+    ensure_actor_can_manage_target(
+        current_operator,
+        operator,
     )
 
     operator.password_hash = (
