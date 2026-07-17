@@ -11,6 +11,7 @@ import app.models.telemetry
 import app.models.vision
 import app.models.activity
 import app.models.evidence
+import app.models.camera
 
 Base.metadata.create_all(bind=engine)
 
