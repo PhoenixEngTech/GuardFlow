@@ -18,6 +18,7 @@ Base.metadata.create_all(bind=engine)
 # Import API routers.
 from app.api.v1 import (
     auth,
+    cameras,
     cases,
     evidence,
     operators,
@@ -76,6 +77,12 @@ app.include_router(
     operators.router,
     prefix="/api/v1/operators",
     tags=["Operator Management"],
+)
+
+app.include_router(
+    cameras.router,
+    prefix="/api/v1/cameras",
+    tags=["Camera Source Management"],
 )
 
 
