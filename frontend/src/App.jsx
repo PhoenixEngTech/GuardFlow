@@ -1435,6 +1435,10 @@ function CaseDashboard({
 function MainConsole() {
   const { token, user, logout } = useAuth();
   const userRole = user?.role || 'field_agent';
+  const hasManagementAccess = [
+    'master',
+    'admin',
+  ].includes(userRole);
 
   const [currentView, setCurrentView] = useState('cases');
   const [cases, setCases] = useState([]);
@@ -1541,7 +1545,7 @@ function MainConsole() {
   }, [fetchCases]);
 
   const fetchOperators = useCallback(async () => {
-    if (userRole !== 'admin') {
+    if (!hasManagementAccess) {
       setOperators([]);
       setOperatorsError('');
       return;
@@ -1566,13 +1570,13 @@ function MainConsole() {
     } finally {
       setOperatorsLoading(false);
     }
-  }, [authenticatedRequest, userRole]);
+  }, [authenticatedRequest, hasManagementAccess]);
 
   useEffect(() => {
-    if (userRole === 'admin') {
+    if (hasManagementAccess) {
       fetchOperators();
     }
-  }, [fetchOperators, userRole, currentView]);
+  }, [fetchOperators, hasManagementAccess, currentView]);
 
   const loadCaseActivities = useCallback(
     async (caseId) => {
@@ -1887,7 +1891,7 @@ function MainConsole() {
               <span>Telematics</span>
             </button>
 
-            {userRole === 'admin' && (
+            {hasManagementAccess && (
               <button
                 type="button"
                 onClick={() => setCurrentView('vision')}
@@ -1902,7 +1906,7 @@ function MainConsole() {
               </button>
             )}
 
-            {userRole === 'admin' && (
+            {hasManagementAccess && (
               <button
                 type="button"
                 onClick={() => setCurrentView('operators')}
@@ -1920,6 +1924,31 @@ function MainConsole() {
         </div>
 
         <div className="pt-0 lg:pt-4 lg:border-t border-tactical-border">
+          <div className="hidden lg:flex items-center justify-between gap-2 px-2 mb-3">
+            <div>
+              <p className="text-[9px] uppercase tracking-wider font-bold text-gray-500">
+                Authority Level
+              </p>
+              <p
+                className={`text-xs font-bold uppercase mt-1 ${
+                  userRole === 'master'
+                    ? 'text-yellow-400'
+                    : userRole === 'admin'
+                      ? 'text-blue-400'
+                      : 'text-gray-300'
+                }`}
+              >
+                {userRole === 'master'
+                  ? 'Master Developer'
+                  : userRole}
+              </p>
+            </div>
+
+            {userRole === 'master' && (
+              <Shield className="w-4 h-4 text-yellow-400" />
+            )}
+          </div>
+
           <button
             type="button"
             onClick={logout}
@@ -1955,7 +1984,7 @@ function MainConsole() {
                 <RefreshCw className="w-4 h-4" />
               </button>
 
-              {userRole === 'admin' && (
+              {hasManagementAccess && (
                 <button
                   type="button"
                   onClick={() => {
@@ -1996,7 +2025,7 @@ function MainConsole() {
           caseFile={selectedCase}
           loading={caseDetailLoading}
           error={caseDetailError}
-          canEdit={userRole === 'admin'}
+          canEdit={hasManagementAccess}
           saving={caseUpdateLoading}
           activities={caseActivities}
           activitiesLoading={caseActivitiesLoading}
