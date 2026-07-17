@@ -54,6 +54,7 @@ function formatDateTime(value) {
 function OperatorFormModal({
   mode,
   operator,
+  currentUser,
   saving,
   error,
   onClose,
@@ -241,7 +242,12 @@ function OperatorFormModal({
                 onChange={(event) => setRole(event.target.value)}
                 className="w-full bg-tactical-bg border border-tactical-border rounded-lg py-2.5 px-3 text-sm text-white focus:outline-none focus:border-tactical-accent disabled:opacity-60"
               >
-                <option value="admin">Administrator</option>
+                {currentUser?.role === 'master' && (
+                  <>
+                    <option value="master">Master Developer</option>
+                    <option value="admin">Administrator</option>
+                  </>
+                )}
                 <option value="dispatcher">Dispatcher</option>
                 <option value="investigator">Investigator</option>
               </select>
@@ -561,6 +567,7 @@ export default function Operators() {
       active: operators.filter((operator) => operator.is_active).length,
       inactive: operators.filter((operator) => !operator.is_active).length,
       admins: operators.filter((operator) => operator.role === 'admin').length,
+      masters: operators.filter((operator) => operator.role === 'master').length,
     };
   }, [operators]);
 
@@ -680,13 +687,19 @@ export default function Operators() {
       label: 'Administrators',
       value: metrics.admins,
       icon: ShieldCheck,
+      className: 'text-blue-400',
+    },
+    {
+      label: 'Master Accounts',
+      value: metrics.masters,
+      icon: ShieldCheck,
       className: 'text-yellow-400',
     },
   ];
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
         {metricCards.map((metric) => {
           const Icon = metric.icon;
 
@@ -779,6 +792,9 @@ export default function Operators() {
             <div className="grid grid-cols-1 2xl:grid-cols-2 gap-4">
               {filteredOperators.map((operator) => {
                 const isCurrentOperator = operator.id === user?.id;
+                const canManageTarget =
+                  user?.role === 'master' ||
+                  !['master', 'admin'].includes(operator.role);
 
                 return (
                   <article
@@ -821,7 +837,9 @@ export default function Operators() {
                           Role
                         </p>
                         <p className="text-xs font-semibold text-tactical-accent mt-1 capitalize">
-                          {operator.role}
+                          {operator.role === 'master'
+                            ? 'Master Developer'
+                            : operator.role}
                         </p>
                       </div>
 
@@ -848,7 +866,13 @@ export default function Operators() {
                       <button
                         type="button"
                         onClick={() => openPasswordReset(operator)}
-                        className="px-3 py-2 rounded-lg border border-yellow-700/40 text-yellow-300 hover:bg-yellow-950/30 text-xs font-semibold flex items-center justify-center gap-2 transition-colors"
+                        disabled={!canManageTarget}
+                        title={
+                          canManageTarget
+                            ? 'Reset operator password'
+                            : 'Only the master developer may manage this profile'
+                        }
+                        className="px-3 py-2 rounded-lg border border-yellow-700/40 text-yellow-300 hover:bg-yellow-950/30 text-xs font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <KeyRound className="w-3.5 h-3.5" />
                         <span>Reset Password</span>
@@ -857,7 +881,13 @@ export default function Operators() {
                       <button
                         type="button"
                         onClick={() => openEditForm(operator)}
-                        className="px-3 py-2 rounded-lg bg-blue-600/10 border border-blue-500/30 text-blue-300 hover:bg-blue-600 hover:text-white text-xs font-semibold flex items-center justify-center gap-2 transition-colors"
+                        disabled={!canManageTarget}
+                        title={
+                          canManageTarget
+                            ? 'Edit operator profile'
+                            : 'Only the master developer may manage this profile'
+                        }
+                        className="px-3 py-2 rounded-lg bg-blue-600/10 border border-blue-500/30 text-blue-300 hover:bg-blue-600 hover:text-white text-xs font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <Pencil className="w-3.5 h-3.5" />
                         <span>Edit Operator</span>
@@ -875,6 +905,7 @@ export default function Operators() {
         <OperatorFormModal
           mode={formMode}
           operator={selectedOperator}
+          currentUser={user}
           saving={formSaving}
           error={formError}
           onClose={closeOperatorForm}
