@@ -69,14 +69,40 @@ function formatDateTime(value) {
   return date.toLocaleString();
 }
 
+function formatEventType(eventType) {
+  const labels = {
+    case_created: 'Case Created',
+    case_updated: 'Case Updated',
+    status_changed: 'Status Changed',
+    operator_reassigned: 'Operator Reassigned',
+  };
+
+  return labels[eventType] ||
+    String(eventType || 'Activity')
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function formatChangeValue(value) {
+  if (value === null || value === undefined || value === '') {
+    return 'None';
+  }
+
+  return String(value);
+}
+
 function CaseDetailModal({
   caseFile,
   loading,
   error,
   canEdit,
   saving,
+  activities,
+  activitiesLoading,
+  activitiesError,
   onClose,
   onRetry,
+  onRetryActivities,
   onSave,
 }) {
   const [isEditing, setIsEditing] = useState(false);
@@ -393,6 +419,133 @@ function CaseDetailModal({
                   {caseFile.id}
                 </p>
               </div>
+
+              <section className="bg-tactical-bg border border-tactical-border rounded-xl overflow-hidden">
+                <div className="px-4 py-3 border-b border-tactical-border flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-tactical-accent" />
+                    <div>
+                      <p className="text-xs font-bold text-white uppercase tracking-wider">
+                        Case Activity Timeline
+                      </p>
+                      <p className="text-[10px] text-gray-500 mt-0.5">
+                        Recorded changes and operator actions
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={onRetryActivities}
+                    disabled={activitiesLoading}
+                    className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-tactical-border/40 transition-colors disabled:opacity-50"
+                    aria-label="Refresh case activity timeline"
+                  >
+                    <RefreshCw
+                      className={`w-4 h-4 ${
+                        activitiesLoading ? 'animate-spin' : ''
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                <div className="p-4">
+                  {activitiesLoading ? (
+                    <div className="py-8 flex flex-col items-center justify-center gap-2 text-gray-400">
+                      <Loader2 className="w-5 h-5 animate-spin text-tactical-accent" />
+                      <p className="text-xs">Loading activity history...</p>
+                    </div>
+                  ) : activitiesError ? (
+                    <div className="p-3 bg-red-950/20 border border-red-800/30 text-red-300 text-xs rounded-lg">
+                      {activitiesError}
+                    </div>
+                  ) : activities.length === 0 ? (
+                    <div className="py-8 text-center text-gray-500">
+                      <Activity className="w-7 h-7 mx-auto mb-2 text-gray-600" />
+                      <p className="text-xs">
+                        No activity has been recorded for this case yet.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-0">
+                      {activities.map((activityItem, index) => {
+                        const changes = Object.entries(
+                          activityItem.changes || {}
+                        );
+
+                        return (
+                          <div
+                            key={activityItem.id}
+                            className="relative pl-8 pb-6 last:pb-0"
+                          >
+                            {index < activities.length - 1 && (
+                              <span className="absolute left-[9px] top-5 bottom-0 w-px bg-tactical-border" />
+                            )}
+
+                            <span className="absolute left-0 top-1 w-[19px] h-[19px] rounded-full bg-blue-950 border border-blue-500/40 flex items-center justify-center">
+                              <span className="w-1.5 h-1.5 rounded-full bg-tactical-accent" />
+                            </span>
+
+                            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1">
+                              <div>
+                                <p className="text-xs font-bold text-white">
+                                  {formatEventType(
+                                    activityItem.event_type
+                                  )}
+                                </p>
+                                <p className="text-xs text-gray-400 mt-1 leading-5">
+                                  {activityItem.summary}
+                                </p>
+                              </div>
+
+                              <p className="text-[10px] text-gray-500 whitespace-nowrap">
+                                {formatDateTime(
+                                  activityItem.created_at
+                                )}
+                              </p>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 mt-2 text-[10px] text-gray-500">
+                              <UserCheck className="w-3 h-3" />
+                              <span>
+                                Operator: {
+                                  activityItem.operator_id || 'System'
+                                }
+                              </span>
+                            </div>
+
+                            {changes.length > 0 && (
+                              <div className="mt-3 grid grid-cols-1 gap-2">
+                                {changes.map(([field, values]) => (
+                                  <div
+                                    key={field}
+                                    className="bg-tactical-panel/40 border border-tactical-border/70 rounded-lg p-2.5"
+                                  >
+                                    <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500">
+                                      {field.replace(/_/g, ' ')}
+                                    </p>
+                                    <p className="text-[11px] text-gray-400 mt-1 break-words">
+                                      <span className="text-red-300/80">
+                                        {formatChangeValue(values?.from)}
+                                      </span>
+                                      <span className="mx-2 text-gray-600">
+                                        →
+                                      </span>
+                                      <span className="text-green-300">
+                                        {formatChangeValue(values?.to)}
+                                      </span>
+                                    </p>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </section>
             </div>
           ) : null}
         </div>
@@ -668,6 +821,11 @@ function MainConsole() {
     useState('');
   const [caseUpdateLoading, setCaseUpdateLoading] =
     useState(false);
+  const [caseActivities, setCaseActivities] = useState([]);
+  const [caseActivitiesLoading, setCaseActivitiesLoading] =
+    useState(false);
+  const [caseActivitiesError, setCaseActivitiesError] =
+    useState('');
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [title, setTitle] = useState('');
@@ -736,12 +894,46 @@ function MainConsole() {
     fetchCases();
   }, [fetchCases]);
 
+  const loadCaseActivities = useCallback(
+    async (caseId) => {
+      if (!caseId) {
+        setCaseActivities([]);
+        return;
+      }
+
+      setCaseActivitiesLoading(true);
+      setCaseActivitiesError('');
+
+      try {
+        const data = await authenticatedRequest(
+          `/api/v1/cases/${caseId}/activities`
+        );
+
+        setCaseActivities(normaliseList(data));
+      } catch (requestError) {
+        setCaseActivities([]);
+        setCaseActivitiesError(
+          requestError instanceof Error
+            ? requestError.message
+            : 'Unable to load the case activity timeline.'
+        );
+      } finally {
+        setCaseActivitiesLoading(false);
+      }
+    },
+    [authenticatedRequest]
+  );
+
   const openCaseDetails = useCallback(
     async (caseId) => {
       setSelectedCaseId(caseId);
       setSelectedCase(null);
       setCaseDetailError('');
       setCaseDetailLoading(true);
+      setCaseActivities([]);
+      setCaseActivitiesError('');
+
+      loadCaseActivities(caseId);
 
       try {
         const data = await authenticatedRequest(
@@ -759,7 +951,7 @@ function MainConsole() {
         setCaseDetailLoading(false);
       }
     },
-    [authenticatedRequest]
+    [authenticatedRequest, loadCaseActivities]
   );
 
   const closeCaseDetails = () => {
@@ -768,6 +960,9 @@ function MainConsole() {
     setCaseDetailError('');
     setCaseDetailLoading(false);
     setCaseUpdateLoading(false);
+    setCaseActivities([]);
+    setCaseActivitiesError('');
+    setCaseActivitiesLoading(false);
   };
 
   const updateCaseDetails = async (updates) => {
@@ -794,6 +989,8 @@ function MainConsole() {
             : caseFile
         )
       );
+
+      await loadCaseActivities(selectedCaseId);
 
       return updatedCase;
     } finally {
@@ -977,8 +1174,14 @@ function MainConsole() {
           error={caseDetailError}
           canEdit={userRole === 'admin'}
           saving={caseUpdateLoading}
+          activities={caseActivities}
+          activitiesLoading={caseActivitiesLoading}
+          activitiesError={caseActivitiesError}
           onClose={closeCaseDetails}
           onRetry={() => openCaseDetails(selectedCaseId)}
+          onRetryActivities={() =>
+            loadCaseActivities(selectedCaseId)
+          }
           onSave={updateCaseDetails}
         />
       )}
