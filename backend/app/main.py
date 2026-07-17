@@ -9,6 +9,7 @@ import app.models.case
 import app.models.telemetry
 import app.models.vision
 import app.models.activity
+import app.models.evidence
 
 # Create all tables
 Base.metadata.create_all(bind=engine)
