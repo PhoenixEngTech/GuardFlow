@@ -1,27 +1,102 @@
-from pydantic import BaseModel, EmailStr
-from typing import Optional
 from datetime import datetime
+from typing import Literal, Optional
 
-# Shared properties across schemas
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    field_validator,
+)
+
+
+OperatorRole = Literal[
+    "admin",
+    "dispatcher",
+    "investigator",
+]
+
+
 class UserBase(BaseModel):
-    username: str
+    username: str = Field(
+        min_length=3,
+        max_length=50,
+    )
+
     email: EmailStr
-    role: str = "dispatcher" # admin, dispatcher, investigator
-    is_active: Optional[bool] = True
 
-# Properties to receive via API on user creation
+    role: OperatorRole = "dispatcher"
+
+    is_active: bool = True
+
+    @field_validator("username")
+    @classmethod
+    def clean_username(cls, value: str) -> str:
+        cleaned_value = value.strip()
+
+        if not cleaned_value:
+            raise ValueError(
+                "Username cannot be empty."
+            )
+
+        return cleaned_value
+
+
 class UserCreate(UserBase):
-    password: str
+    password: str = Field(
+        min_length=12,
+        max_length=128,
+    )
 
-# Properties returned to the client browser via API safely (No passwords leaked)
+
+class UserUpdate(BaseModel):
+    username: Optional[str] = Field(
+        default=None,
+        min_length=3,
+        max_length=50,
+    )
+
+    email: Optional[EmailStr] = None
+
+    role: Optional[OperatorRole] = None
+
+    is_active: Optional[bool] = None
+
+    @field_validator("username")
+    @classmethod
+    def clean_optional_username(
+        cls,
+        value: Optional[str],
+    ) -> Optional[str]:
+        if value is None:
+            return None
+
+        cleaned_value = value.strip()
+
+        if not cleaned_value:
+            raise ValueError(
+                "Username cannot be empty."
+            )
+
+        return cleaned_value
+
+
+class PasswordReset(BaseModel):
+    new_password: str = Field(
+        min_length=12,
+        max_length=128,
+    )
+
+
 class UserOut(UserBase):
     id: str
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(
+        from_attributes=True
+    )
 
-# Format required for the Login Response token
+
 class Token(BaseModel):
     access_token: str
     token_type: str
