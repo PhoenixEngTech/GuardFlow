@@ -12,6 +12,7 @@ import app.models.vision
 import app.models.activity
 import app.models.evidence
 import app.models.camera
+import app.models.edge_gateway
 
 Base.metadata.create_all(bind=engine)
 
