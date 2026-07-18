@@ -24,6 +24,7 @@ from app.api.v1 import (
     auth,
     cameras,
     cases,
+    edge,
     edge_gateways,
     evidence,
     operators,
@@ -95,6 +96,13 @@ app.include_router(
     edge_gateways.router,
     prefix="/api/v1/edge-gateways",
     tags=["Edge Gateway Management"],
+)
+
+app.include_router(
+    edge.router,
+    prefix="/api/v1/internal/edge",
+    tags=["Edge Gateway Internal"],
+    include_in_schema=False,
 )
 
 app.include_router(
