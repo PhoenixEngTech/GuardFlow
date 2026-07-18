@@ -42,6 +42,9 @@ celery_app = Celery(
     "guardflow_workers",
     broker=BROKER_URL,
     backend=RESULT_BACKEND,
+    include=[
+        "visionflow_tasks",
+    ],
 )
 
 
@@ -76,6 +79,29 @@ celery_app.conf.update(
     task_default_queue="guardflow",
     task_default_exchange="guardflow",
     task_default_routing_key="guardflow.default",
+
+    task_routes={
+        "guardflow.worker.ping": {
+            "queue": "guardflow",
+        },
+        "guardflow.visionflow.refresh_control_plane": {
+            "queue": "visionflow",
+        },
+    },
+
+    beat_schedule={
+        "refresh-visionflow-control-plane": {
+            "task": (
+                "guardflow.visionflow."
+                "refresh_control_plane"
+            ),
+            "schedule": 60.0,
+            "options": {
+                "queue": "visionflow",
+                "expires": 55,
+            },
+        },
+    },
 )
 
 
@@ -85,8 +111,8 @@ celery_app.conf.update(
 )
 def worker_ping(self) -> dict:
     """
-    Lightweight task used to verify that Redis and the
-    GuardFlow Celery worker are operating correctly.
+    Verify that Redis and the GuardFlow Celery
+    worker are operating correctly.
     """
 
     return {
