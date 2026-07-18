@@ -92,6 +92,12 @@ class CameraCreate(BaseModel):
         max_length=500,
     )
 
+    edge_gateway_id: Optional[str] = Field(
+        default=None,
+        min_length=1,
+        max_length=100,
+    )
+
     is_active: bool = True
 
     @field_validator(
@@ -120,6 +126,7 @@ class CameraCreate(BaseModel):
         "stream_path",
         "credential_reference",
         "gateway_stream_url",
+        "edge_gateway_id",
     )
     @classmethod
     def clean_optional_text(
@@ -205,6 +212,12 @@ class CameraUpdate(BaseModel):
         max_length=500,
     )
 
+    edge_gateway_id: Optional[str] = Field(
+        default=None,
+        min_length=1,
+        max_length=100,
+    )
+
     is_active: Optional[bool] = None
 
     @field_validator(
@@ -236,6 +249,7 @@ class CameraUpdate(BaseModel):
         "stream_path",
         "credential_reference",
         "gateway_stream_url",
+        "edge_gateway_id",
     )
     @classmethod
     def clean_optional_text(
@@ -258,6 +272,7 @@ class CameraHealthUpdate(BaseModel):
 class CameraOut(BaseModel):
     id: str
     name: str
+
     manufacturer: Optional[str] = None
     model: Optional[str] = None
     serial_number: Optional[str] = None
@@ -274,11 +289,14 @@ class CameraOut(BaseModel):
     credential_reference: Optional[str] = None
     gateway_stream_url: Optional[str] = None
 
+    edge_gateway_id: Optional[str] = None
+
     status: CameraStatus
     is_active: bool
     last_seen_at: Optional[datetime] = None
 
     created_by_operator_id: Optional[str] = None
+
     created_at: datetime
     updated_at: datetime
 
