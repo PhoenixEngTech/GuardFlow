@@ -87,6 +87,9 @@ celery_app.conf.update(
         "guardflow.visionflow.refresh_control_plane": {
             "queue": "visionflow",
         },
+        "guardflow.visionflow.monitor_camera_health": {
+            "queue": "visionflow",
+        },
     },
 
     beat_schedule={
@@ -94,6 +97,18 @@ celery_app.conf.update(
             "task": (
                 "guardflow.visionflow."
                 "refresh_control_plane"
+            ),
+            "schedule": 60.0,
+            "options": {
+                "queue": "visionflow",
+                "expires": 55,
+            },
+        },
+
+        "monitor-visionflow-camera-health": {
+            "task": (
+                "guardflow.visionflow."
+                "monitor_camera_health"
             ),
             "schedule": 60.0,
             "options": {
