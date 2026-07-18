@@ -112,7 +112,20 @@ class CameraSource(Base):
 
     created_by_operator_id = Column(
         String,
-        ForeignKey("operators.id"),
+        ForeignKey(
+            "operators.id",
+            ondelete="SET NULL",
+        ),
+        nullable=True,
+        index=True,
+    )
+
+    edge_gateway_id = Column(
+        String,
+        ForeignKey(
+            "edge_gateways.id",
+            ondelete="SET NULL",
+        ),
         nullable=True,
         index=True,
     )
