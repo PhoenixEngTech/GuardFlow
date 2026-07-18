@@ -19,4 +19,4 @@ RUN useradd --create-home --uid 10001 guardflow \
 
 USER guardflow
 
-CMD ["celery", "-A", "celery_app:celery_app", "worker", "--loglevel=INFO", "--queues=guardflow,visionflow", "--concurrency=2"]
+CMD ["celery", "-A", "celery_app:celery_app", "worker", "--beat", "--loglevel=INFO", "--queues=guardflow,visionflow", "--concurrency=2", "--schedule=/tmp/guardflow-celerybeat-schedule"]
