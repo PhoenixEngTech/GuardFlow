@@ -7,7 +7,7 @@ from fastapi import (
     HTTPException,
     status,
 )
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -16,6 +16,7 @@ from app.core.permissions import (
     require_management_operator,
 )
 from app.models.camera import CameraSource
+from app.models.edge_gateway import EdgeGateway
 from app.models.user import Operator
 from app.schemas.camera import (
     CameraCreate,
@@ -34,7 +35,9 @@ def get_camera_or_404(
 ) -> CameraSource:
     camera = (
         db.query(CameraSource)
-        .filter(CameraSource.id == camera_id)
+        .filter(
+            CameraSource.id == camera_id
+        )
         .first()
     )
 
@@ -47,6 +50,69 @@ def get_camera_or_404(
     return camera
 
 
+def resolve_edge_gateway_id(
+    edge_gateway_reference: str | None,
+    db: Session,
+) -> str | None:
+    """
+    Resolve an Edge Gateway reference to its internal
+    database record ID.
+
+    The request may provide either:
+
+    - The internal EdgeGateway.id value.
+    - The readable gateway ID, such as GF-EDGE-001.
+
+    Only active gateways may receive camera
+    assignments.
+    """
+
+    if edge_gateway_reference is None:
+        return None
+
+    clean_reference = (
+        edge_gateway_reference.strip()
+    )
+
+    if not clean_reference:
+        return None
+
+    gateway = (
+        db.query(EdgeGateway)
+        .filter(
+            or_(
+                EdgeGateway.id
+                == clean_reference,
+                func.lower(
+                    EdgeGateway.gateway_id
+                )
+                == clean_reference.lower(),
+            )
+        )
+        .first()
+    )
+
+    if gateway is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=(
+                "The selected Edge Gateway "
+                "does not exist."
+            ),
+        )
+
+    if not gateway.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "The selected Edge Gateway "
+                "is disabled."
+            ),
+        )
+
+    return gateway.id
+
+
 def ensure_unique_serial_number(
     serial_number: str | None,
     db: Session,
@@ -55,22 +121,28 @@ def ensure_unique_serial_number(
     if not serial_number:
         return
 
-    query = db.query(CameraSource).filter(
-        func.lower(CameraSource.serial_number)
-        == serial_number.lower()
+    query = (
+        db.query(CameraSource)
+        .filter(
+            func.lower(
+                CameraSource.serial_number
+            )
+            == serial_number.lower()
+        )
     )
 
     if exclude_camera_id:
         query = query.filter(
-            CameraSource.id != exclude_camera_id
+            CameraSource.id
+            != exclude_camera_id
         )
 
     if query.first():
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
-                "That camera serial number is already "
-                "registered."
+                "That camera serial number is "
+                "already registered."
             ),
         )
 
@@ -84,28 +156,35 @@ def ensure_unique_connection(
 ) -> None:
     normalised_path = stream_path or ""
 
-    query = db.query(CameraSource).filter(
-        func.lower(CameraSource.host)
-        == host.lower(),
-        CameraSource.port == port,
-        func.coalesce(
-            CameraSource.stream_path,
-            "",
+    query = (
+        db.query(CameraSource)
+        .filter(
+            func.lower(
+                CameraSource.host
+            )
+            == host.lower(),
+            CameraSource.port == port,
+            func.coalesce(
+                CameraSource.stream_path,
+                "",
+            )
+            == normalised_path,
         )
-        == normalised_path,
     )
 
     if exclude_camera_id:
         query = query.filter(
-            CameraSource.id != exclude_camera_id
+            CameraSource.id
+            != exclude_camera_id
         )
 
     if query.first():
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
-                "A camera using this host, port and "
-                "stream path is already registered."
+                "A camera using this host, port "
+                "and stream path is already "
+                "registered."
             ),
         )
 
@@ -178,6 +257,13 @@ def create_camera_source(
         db,
     )
 
+    resolved_edge_gateway_id = (
+        resolve_edge_gateway_id(
+            camera_in.edge_gateway_id,
+            db,
+        )
+    )
+
     initial_status = (
         "pending"
         if camera_in.is_active
@@ -186,21 +272,34 @@ def create_camera_source(
 
     camera = CameraSource(
         name=camera_in.name,
-        manufacturer=camera_in.manufacturer,
+        manufacturer=(
+            camera_in.manufacturer
+        ),
         model=camera_in.model,
-        serial_number=camera_in.serial_number,
-        location_name=camera_in.location_name,
+        serial_number=(
+            camera_in.serial_number
+        ),
+        location_name=(
+            camera_in.location_name
+        ),
         latitude=camera_in.latitude,
         longitude=camera_in.longitude,
-        connection_type=camera_in.connection_type,
+        connection_type=(
+            camera_in.connection_type
+        ),
         host=camera_in.host,
         port=camera_in.port,
-        stream_path=camera_in.stream_path,
+        stream_path=(
+            camera_in.stream_path
+        ),
         credential_reference=(
             camera_in.credential_reference
         ),
         gateway_stream_url=(
             camera_in.gateway_stream_url
+        ),
+        edge_gateway_id=(
+            resolved_edge_gateway_id
         ),
         status=initial_status,
         is_active=camera_in.is_active,
@@ -220,8 +319,9 @@ def create_camera_source(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
-                "The camera could not be registered "
-                "because a unique value already exists."
+                "The camera could not be "
+                "registered because a unique "
+                "value already exists."
             ),
         ) from exc
 
@@ -249,9 +349,11 @@ def update_camera_source(
         exclude_unset=True
     )
 
-    requested_serial_number = update_data.get(
-        "serial_number",
-        camera.serial_number,
+    requested_serial_number = (
+        update_data.get(
+            "serial_number",
+            camera.serial_number,
+        )
     )
 
     requested_host = update_data.get(
@@ -264,9 +366,11 @@ def update_camera_source(
         camera.port,
     )
 
-    requested_stream_path = update_data.get(
-        "stream_path",
-        camera.stream_path,
+    requested_stream_path = (
+        update_data.get(
+            "stream_path",
+            camera.stream_path,
+        )
     )
 
     ensure_unique_serial_number(
@@ -283,6 +387,27 @@ def update_camera_source(
         exclude_camera_id=camera.id,
     )
 
+    gateway_assignment_changed = False
+
+    if "edge_gateway_id" in update_data:
+        resolved_edge_gateway_id = (
+            resolve_edge_gateway_id(
+                update_data[
+                    "edge_gateway_id"
+                ],
+                db,
+            )
+        )
+
+        gateway_assignment_changed = (
+            resolved_edge_gateway_id
+            != camera.edge_gateway_id
+        )
+
+        update_data[
+            "edge_gateway_id"
+        ] = resolved_edge_gateway_id
+
     editable_fields = {
         "name",
         "manufacturer",
@@ -297,6 +422,7 @@ def update_camera_source(
         "stream_path",
         "credential_reference",
         "gateway_stream_url",
+        "edge_gateway_id",
     }
 
     for field_name in editable_fields:
@@ -317,6 +443,14 @@ def update_camera_source(
                 camera.status = "pending"
         else:
             camera.status = "disabled"
+            camera.last_seen_at = None
+
+    if (
+        gateway_assignment_changed
+        and camera.is_active
+    ):
+        camera.status = "pending"
+        camera.last_seen_at = None
 
     try:
         db.commit()
@@ -328,8 +462,8 @@ def update_camera_source(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
-                "The camera update conflicts with "
-                "another registered source."
+                "The camera update conflicts "
+                "with another registered source."
             ),
         ) from exc
 
@@ -349,10 +483,10 @@ def update_camera_health(
     ),
 ) -> Any:
     """
-    Temporary authenticated health endpoint.
+    Authenticated management health endpoint.
 
-    Later, the VisionFlow gateway worker will update
-    this endpoint using its own service identity.
+    Edge Gateways report automatically through the
+    protected internal Edge Gateway endpoint.
     """
 
     camera = get_camera_or_404(
