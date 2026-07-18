@@ -24,6 +24,7 @@ from app.api.v1 import (
     operators,
     tracking,
     vision,
+    worker,
 )
 
 
@@ -85,6 +86,12 @@ app.include_router(
     tags=["Camera Source Management"],
 )
 
+app.include_router(
+    worker.router,
+    prefix="/api/v1/internal/visionflow",
+    tags=["VisionFlow Worker"],
+    include_in_schema=False,
+)
 
 @app.get("/")
 def root_health_check():
