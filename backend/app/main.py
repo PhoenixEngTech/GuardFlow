@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.database import Base, engine
 
+
 # Register database models before creating tables.
 import app.models.user
 import app.models.case
@@ -14,13 +15,16 @@ import app.models.evidence
 import app.models.camera
 import app.models.edge_gateway
 
+
 Base.metadata.create_all(bind=engine)
+
 
 # Import API routers.
 from app.api.v1 import (
     auth,
     cameras,
     cases,
+    edge_gateways,
     evidence,
     operators,
     tracking,
@@ -88,11 +92,18 @@ app.include_router(
 )
 
 app.include_router(
+    edge_gateways.router,
+    prefix="/api/v1/edge-gateways",
+    tags=["Edge Gateway Management"],
+)
+
+app.include_router(
     worker.router,
     prefix="/api/v1/internal/visionflow",
     tags=["VisionFlow Worker"],
     include_in_schema=False,
 )
+
 
 @app.get("/")
 def root_health_check():
