@@ -8,28 +8,15 @@ WORKDIR /app
 
 COPY requirements.txt .
 
-RUN pip install --no-cache-dir \
-    --upgrade pip \
-    && pip install --no-cache-dir \
-    -r requirements.txt
+RUN python -m pip install --upgrade pip \
+    && python -m pip install -r requirements.txt
 
 COPY celery_app.py .
 COPY visionflow_tasks.py .
 
-RUN useradd \
-    --create-home \
-    --uid 10001 \
-    guardflow \
+RUN useradd --create-home --uid 10001 guardflow \
     && chown -R guardflow:guardflow /app
 
 USER guardflow
 
-CMD [
-    "celery",
-    "-A",
-    "celery_app:celery_app",
-    "worker",
-    "--loglevel=INFO",
-    "--queues=guardflow,visionflow",
-    "--concurrency=2"
-]
+CMD ["celery", "-A", "celery_app:celery_app", "worker", "--loglevel=INFO", "--queues=guardflow,visionflow", "--concurrency=2"]
