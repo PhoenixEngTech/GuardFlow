@@ -14,6 +14,7 @@ import app.models.activity
 import app.models.evidence
 import app.models.camera
 import app.models.edge_gateway
+import app.models.mobile_tracking
 
 
 Base.metadata.create_all(bind=engine)
