@@ -14,3 +14,5 @@ frontend/build/
 # System files
 .DS_Store
 Thumbs.db
+**/.venv/
+edge_gateway/cameras.json
