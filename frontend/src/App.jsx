@@ -4,6 +4,7 @@ import Login from './Login';
 import Tracking from './Tracking';
 import VisionFlow from './VisionFlow';
 import Operators from './Operators';
+import MobileCommandCentre from './MobileCommandCentre';
 import {
   Activity,
   AlertTriangle,
@@ -29,6 +30,7 @@ import {
   Save,
   Search,
   Shield,
+  Smartphone,
   UploadCloud,
   UserCheck,
   Users,
@@ -1840,9 +1842,11 @@ function MainConsole() {
       ? 'Operational Registers'
       : currentView === 'tracking'
         ? 'Live Telematics Stream'
-        : currentView === 'vision'
-          ? 'VisionFlow AI Surveillance'
-          : 'Operator Administration';
+        : currentView === 'mobile'
+          ? 'Mobile Command Centre'
+          : currentView === 'vision'
+            ? 'VisionFlow AI Surveillance'
+            : 'Operator Administration';
 
   return (
     <div className="min-h-screen bg-tactical-bg flex flex-col lg:flex-row text-gray-100 font-sans relative">
@@ -1864,7 +1868,7 @@ function MainConsole() {
             </div>
           </div>
 
-          <nav className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-1 gap-1">
+          <nav className="grid grid-cols-2 sm:grid-cols-5 lg:grid-cols-1 gap-1">
             <button
               type="button"
               onClick={() => setCurrentView('cases')}
@@ -1889,6 +1893,19 @@ function MainConsole() {
             >
               <Radio className="w-4 h-4" />
               <span>Telematics</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setCurrentView('mobile')}
+              className={`w-full flex items-center justify-center lg:justify-start gap-2 lg:gap-3 px-3 py-2.5 rounded-lg text-xs lg:text-sm font-medium transition-colors ${
+                currentView === 'mobile'
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-500/10'
+                  : 'text-gray-400 hover:bg-tactical-border/30 hover:text-white'
+              }`}
+            >
+              <Smartphone className="w-4 h-4" />
+              <span>Mobile</span>
             </button>
 
             {hasManagementAccess && (
@@ -2012,6 +2029,8 @@ function MainConsole() {
             />
           ) : currentView === 'tracking' ? (
             <Tracking />
+          ) : currentView === 'mobile' ? (
+            <MobileCommandCentre />
           ) : currentView === 'vision' ? (
             <VisionFlow />
           ) : (
