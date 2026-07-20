@@ -1,7 +1,11 @@
 import hashlib
 import secrets
 
-from fastapi import Depends, HTTPException, status
+from fastapi import (
+    Depends,
+    HTTPException,
+    status,
+)
 from fastapi.security import (
     APIKeyHeader,
     OAuth2PasswordBearer,
@@ -12,6 +16,10 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.database import get_db
 from app.models.edge_gateway import EdgeGateway
+from app.models.mobile_tracking import (
+    MobileDevice,
+    MobileTrackingSubject,
+)
 from app.models.user import Operator
 
 
@@ -38,6 +46,18 @@ edge_gateway_token_header = APIKeyHeader(
 )
 
 
+mobile_device_id_header = APIKeyHeader(
+    name="X-GuardFlow-Device-ID",
+    auto_error=False,
+)
+
+
+mobile_device_token_header = APIKeyHeader(
+    name="X-GuardFlow-Mobile-Token",
+    auto_error=False,
+)
+
+
 def get_current_operator(
     token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db),
@@ -49,7 +69,9 @@ def get_current_operator(
 
     credentials_error = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate operator credentials.",
+        detail=(
+            "Could not validate operator credentials."
+        ),
         headers={
             "WWW-Authenticate": "Bearer",
         },
@@ -86,7 +108,9 @@ def get_current_operator(
     if not operator.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Operator profile is deactivated.",
+            detail=(
+                "Operator profile is deactivated."
+            ),
         )
 
     return operator
@@ -98,13 +122,17 @@ def get_visionflow_worker(
     ),
 ) -> str:
     """
-    Authenticate the internal Railway VisionFlow worker.
+    Authenticate the internal Railway VisionFlow
+    worker.
     """
 
     if not worker_token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="VisionFlow worker authentication is required.",
+            detail=(
+                "VisionFlow worker authentication "
+                "is required."
+            ),
         )
 
     token_is_valid = secrets.compare_digest(
@@ -115,7 +143,10 @@ def get_visionflow_worker(
     if not token_is_valid:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid VisionFlow worker credentials.",
+            detail=(
+                "Invalid VisionFlow worker "
+                "credentials."
+            ),
         )
 
     return "visionflow-worker"
@@ -125,9 +156,11 @@ def hash_edge_gateway_token(
     plaintext_token: str,
 ) -> str:
     """
-    Create the SHA-256 hash stored for an Edge Gateway token.
+    Create the SHA-256 hash stored for an Edge Gateway
+    token.
 
-    Plaintext gateway tokens must never be stored in PostgreSQL.
+    Plaintext gateway tokens must never be stored in
+    PostgreSQL.
     """
 
     return hashlib.sha256(
@@ -165,7 +198,10 @@ def get_current_edge_gateway(
     clean_gateway_id = gateway_id.strip()
     clean_gateway_token = gateway_token.strip()
 
-    if not clean_gateway_id or not clean_gateway_token:
+    if (
+        not clean_gateway_id
+        or not clean_gateway_token
+    ):
         raise authentication_error
 
     gateway = (
@@ -180,8 +216,10 @@ def get_current_edge_gateway(
     if gateway is None:
         raise authentication_error
 
-    supplied_token_hash = hash_edge_gateway_token(
-        clean_gateway_token
+    supplied_token_hash = (
+        hash_edge_gateway_token(
+            clean_gateway_token
+        )
     )
 
     token_is_valid = secrets.compare_digest(
@@ -195,7 +233,124 @@ def get_current_edge_gateway(
     if not gateway.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="This Edge Gateway has been disabled.",
+            detail=(
+                "This Edge Gateway has been disabled."
+            ),
         )
 
     return gateway
+
+
+def hash_mobile_device_token(
+    plaintext_token: str,
+) -> str:
+    """
+    Create the SHA-256 hash stored for a mobile-device
+    authentication token.
+
+    The plaintext token must never be stored in
+    PostgreSQL.
+    """
+
+    return hashlib.sha256(
+        plaintext_token.encode("utf-8")
+    ).hexdigest()
+
+
+def get_current_mobile_device(
+    device_id: str | None = Depends(
+        mobile_device_id_header
+    ),
+    device_token: str | None = Depends(
+        mobile_device_token_header
+    ),
+    db: Session = Depends(get_db),
+) -> MobileDevice:
+    """
+    Authenticate a registered GuardFlow mobile device.
+
+    Required headers:
+
+    X-GuardFlow-Device-ID
+    X-GuardFlow-Mobile-Token
+    """
+
+    authentication_error = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid mobile device credentials.",
+    )
+
+    if not device_id or not device_token:
+        raise authentication_error
+
+    clean_device_id = device_id.strip()
+    clean_device_token = device_token.strip()
+
+    if (
+        not clean_device_id
+        or not clean_device_token
+    ):
+        raise authentication_error
+
+    device = (
+        db.query(MobileDevice)
+        .filter(
+            MobileDevice.device_id
+            == clean_device_id
+        )
+        .first()
+    )
+
+    if device is None:
+        raise authentication_error
+
+    supplied_token_hash = (
+        hash_mobile_device_token(
+            clean_device_token
+        )
+    )
+
+    token_is_valid = secrets.compare_digest(
+        supplied_token_hash,
+        device.token_hash,
+    )
+
+    if not token_is_valid:
+        raise authentication_error
+
+    if not device.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "This mobile device has been disabled."
+            ),
+        )
+
+    subject = (
+        db.query(MobileTrackingSubject)
+        .filter(
+            MobileTrackingSubject.id
+            == device.subject_id
+        )
+        .first()
+    )
+
+    if subject is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "The mobile device is not linked to "
+                "a valid tracking subject."
+            ),
+        )
+
+    if not subject.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "The linked mobile tracking subject "
+                "has been disabled."
+            ),
+        )
+
+    return device
