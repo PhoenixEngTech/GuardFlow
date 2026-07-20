@@ -28,6 +28,7 @@ from app.api.v1 import (
     edge,
     edge_gateways,
     evidence,
+    mobile,
     mobile_tracking,
     operators,
     tracking,
@@ -104,6 +105,12 @@ app.include_router(
     mobile_tracking.router,
     prefix="/api/v1/mobile-tracking",
     tags=["Mobile Tracking Management"],
+)
+
+app.include_router(
+    mobile.router,
+    prefix="/api/v1/mobile",
+    tags=["Mobile Companion"],
 )
 
 app.include_router(
