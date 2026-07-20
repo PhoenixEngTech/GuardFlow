@@ -23,6 +23,7 @@ from app.schemas.mobile_tracking import (
     MobileLocationOut,
     MobileSOSCreate,
     MobileSOSOut,
+    MobileSessionOut,
 )
 
 
@@ -124,6 +125,56 @@ def mark_mobile_device_online(
     current_device.status = "online"
     current_device.last_seen_at = datetime.now(
         timezone.utc
+    )
+
+
+@router.get(
+    "/session",
+    response_model=MobileSessionOut,
+)
+def read_current_mobile_session(
+    db: Session = Depends(get_db),
+    current_device: MobileDevice = Depends(
+        get_current_mobile_device
+    ),
+) -> Any:
+    """
+    Return the authorised active tracking session for
+    the authenticated phone.
+
+    The mobile application uses this endpoint to obtain
+    its session ID automatically. A phone never receives
+    another device's session.
+    """
+
+    session = (
+        db.query(MobileTrackingSession)
+        .filter(
+            MobileTrackingSession.device_id
+            == current_device.id,
+            MobileTrackingSession.subject_id
+            == current_device.subject_id,
+            MobileTrackingSession.status == "active",
+        )
+        .order_by(
+            MobileTrackingSession.started_at.desc()
+        )
+        .first()
+    )
+
+    if session is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=(
+                "No active tracking session is authorised "
+                "for this mobile device."
+            ),
+        )
+
+    return get_authorised_active_session(
+        session.id,
+        current_device,
+        db,
     )
 
 
