@@ -2338,8 +2338,22 @@ export default function MobileCommandCentre() {
 
                           <p className="text-sm font-semibold text-white mt-3">
                             {
+                              liveSubjects.find(
+                                (item) =>
+                                  item.session?.id ===
+                                  alert.session_id
+                              )?.subject?.display_name ||
+                              subjectById.get(
+                                alert.subject_id
+                              )?.display_name ||
+                              'Unknown mobile client'
+                            }
+                          </p>
+
+                          <p className="text-xs text-red-300 mt-1">
+                            {
                               alert.message ||
-                              'Mobile SOS alert'
+                              'Emergency mobile SOS'
                             }
                           </p>
 
