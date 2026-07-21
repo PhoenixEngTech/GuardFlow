@@ -16,3 +16,10 @@ frontend/build/
 Thumbs.db
 **/.venv/
 edge_gateway/cameras.json
+frontend/.env.local
+frontend/.env.production.local
+__pycache__/
+_alarm_backup_*/
+_radio_backup_*/
+backend/app/main.py.before-router-fix-*
+*.pre-upload-backup

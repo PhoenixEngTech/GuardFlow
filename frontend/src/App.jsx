@@ -5,6 +5,9 @@ import Tracking from './Tracking';
 import VisionFlow from './VisionFlow';
 import Operators from './Operators';
 import MobileCommandCentre from './MobileCommandCentre';
+import AlarmCentre from './AlarmCentre';
+import AlarmBanner from './AlarmBanner';
+import RadioDispatch from './RadioDispatch';
 import {
   Activity,
   AlertTriangle,
@@ -1846,10 +1849,17 @@ function MainConsole() {
           ? 'Mobile Command Centre'
           : currentView === 'vision'
             ? 'VisionFlow AI Surveillance'
+            : currentView === 'alarms'
+          ? 'Universal Alarm Centre'
+          : currentView === 'radios'
+
+            ? 'Radio Dispatch Centre'
+
             : 'Operator Administration';
 
   return (
     <div className="min-h-screen bg-tactical-bg flex flex-col lg:flex-row text-gray-100 font-sans relative">
+      <AlarmBanner onOpenAlarmCentre={() => setCurrentView('alarms')} />
       <aside className="w-full lg:w-64 bg-tactical-panel border-b lg:border-b-0 lg:border-r border-tactical-border flex lg:flex-col justify-between p-4 lg:p-5 gap-4">
         <div className="space-y-4 lg:space-y-6 flex-1">
           <div className="flex items-center gap-3 px-2 py-1">
@@ -1922,7 +1932,32 @@ function MainConsole() {
                 <span>VisionFlow</span>
               </button>
             )}
-
+          
+            <button
+              type="button"
+              onClick={() => setCurrentView('alarms')}
+              className={`w-full flex items-center justify-center lg:justify-start gap-2 lg:gap-3 px-3 py-2.5 rounded-lg text-xs lg:text-sm font-medium transition-colors ${
+                currentView === 'alarms'
+                  ? 'bg-red-700 text-white shadow-md shadow-red-500/10'
+                  : 'text-gray-400 hover:bg-tactical-border/30 hover:text-white'
+              }`}
+            >
+              <AlertTriangle className="w-4 h-4" />
+              <span>Alarm Centre</span>
+            </button>
+          
+            <button
+              type="button"
+              onClick={() => setCurrentView('radios')}
+              className={`w-full flex items-center justify-center lg:justify-start gap-2 lg:gap-3 px-3 py-2.5 rounded-lg text-xs lg:text-sm font-medium transition-colors ${
+                currentView === 'radios'
+                  ? 'bg-cyan-700 text-white shadow-md shadow-cyan-500/10'
+                  : 'text-gray-400 hover:bg-tactical-border/30 hover:text-white'
+              }`}
+            >
+              <Radio className="w-4 h-4" />
+              <span>Radios</span>
+            </button>
             {hasManagementAccess && (
               <button
                 type="button"
@@ -2033,6 +2068,10 @@ function MainConsole() {
             <MobileCommandCentre />
           ) : currentView === 'vision' ? (
             <VisionFlow />
+          ) : currentView === 'alarms' ? (
+            <AlarmCentre />
+          ) : currentView === 'radios' ? (
+            <RadioDispatch />
           ) : (
             <Operators />
           )}

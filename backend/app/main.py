@@ -149,3 +149,11 @@ def root_health_check():
         "system": "GuardFlow Engine Core",
         "developer": "Phoenix EngTech",
     }
+
+# GuardFlow Universal Alarm System v1.0.0
+from app.api.v1 import alarms as guardflow_alarm_routes
+app.include_router(guardflow_alarm_routes.router, prefix="/api/v1")
+
+# GuardFlow Radio Dispatch v1.0.0
+from app.api.v1 import radios as guardflow_radio_routes
+app.include_router(guardflow_radio_routes.router, prefix="/api/v1")

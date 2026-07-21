@@ -1,0 +1,2 @@
+No edit to app/models/__init__.py is required when the alarm router is imported.
+The router imports app.models.alarm and creates only the alarm tables at startup.
