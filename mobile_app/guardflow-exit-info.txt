@@ -1,0 +1,68 @@
+﻿ACTIVITY MANAGER PROCESS EXIT INFO (dumpsys activity exit-info)
+Last Timestamp of Persistence Into Persistent Storage: 2026-07-21 10:26:00.584
+  package: za.co.vanelo.guardflow.mobile
+    Historical Process Exit for uid=10224
+        ApplicationExitInfo #0:
+          timestamp=2026-07-21 10:55:15.414 pid=13253 realUid=10224 packageUid=10224 definingUid=10224 user=0
+          process=za.co.vanelo.guardflow.mobile reason=10 (USER REQUESTED) subreason=21 (FORCE STOP) status=0
+          importance=125 pss=54MB rss=61MB description=stop za.co.vanelo.guardflow.mobile due to from pid 14661 state=empty trace=null
+        ApplicationExitInfo #1:
+          timestamp=2026-07-21 10:25:56.063 pid=4552 realUid=10224 packageUid=10224 definingUid=10224 user=0
+          process=za.co.vanelo.guardflow.mobile reason=10 (USER REQUESTED) subreason=22 (REMOVE TASK) status=0
+          importance=400 pss=86MB rss=130MB description=remove task state=empty trace=null
+        ApplicationExitInfo #2:
+          timestamp=2026-07-21 10:22:34.458 pid=4528 realUid=10224 packageUid=10224 definingUid=10224 user=0
+          process=za.co.vanelo.guardflow.mobile reason=13 (OTHER KILLS BY SYSTEM) subreason=2 (TOO MANY CACHED PROCS) status=0
+          importance=400 pss=45MB rss=31MB description=too many cached state=empty trace=null
+        ApplicationExitInfo #3:
+          timestamp=2026-07-21 02:28:48.661 pid=30328 realUid=10224 packageUid=10224 definingUid=10224 user=0
+          process=za.co.vanelo.guardflow.mobile reason=4 (APP CRASH(EXCEPTION)) subreason=0 (UNKNOWN) status=0
+          importance=400 pss=0,00 rss=0,00 description=crash state=empty trace=null
+        ApplicationExitInfo #4:
+          timestamp=2026-07-21 02:28:07.903 pid=28803 realUid=10224 packageUid=10224 definingUid=10224 user=0
+          process=za.co.vanelo.guardflow.mobile reason=4 (APP CRASH(EXCEPTION)) subreason=0 (UNKNOWN) status=0
+          importance=400 pss=0,00 rss=0,00 description=crash state=empty trace=null
+        ApplicationExitInfo #5:
+          timestamp=2026-07-21 02:18:07.838 pid=28049 realUid=10224 packageUid=10224 definingUid=10224 user=0
+          process=za.co.vanelo.guardflow.mobile reason=4 (APP CRASH(EXCEPTION)) subreason=0 (UNKNOWN) status=0
+          importance=400 pss=0,00 rss=0,00 description=crash state=empty trace=null
+        ApplicationExitInfo #6:
+          timestamp=2026-07-21 02:11:20.001 pid=25008 realUid=10224 packageUid=10224 definingUid=10224 user=0
+          process=za.co.vanelo.guardflow.mobile reason=4 (APP CRASH(EXCEPTION)) subreason=0 (UNKNOWN) status=0
+          importance=100 pss=0,00 rss=0,00 description=crash state=empty trace=null
+        ApplicationExitInfo #7:
+          timestamp=2026-07-21 02:08:02.542 pid=24980 realUid=10224 packageUid=10224 definingUid=10224 user=0
+          process=za.co.vanelo.guardflow.mobile reason=4 (APP CRASH(EXCEPTION)) subreason=0 (UNKNOWN) status=0
+          importance=400 pss=0,00 rss=0,00 description=crash state=empty trace=null
+        ApplicationExitInfo #8:
+          timestamp=2026-07-21 02:08:01.500 pid=23865 realUid=10224 packageUid=10224 definingUid=10224 user=0
+          process=za.co.vanelo.guardflow.mobile reason=4 (APP CRASH(EXCEPTION)) subreason=0 (UNKNOWN) status=0
+          importance=100 pss=45MB rss=76MB description=crash state=empty trace=null
+        ApplicationExitInfo #9:
+          timestamp=2026-07-21 01:56:52.213 pid=23291 realUid=10224 packageUid=10224 definingUid=10224 user=0
+          process=za.co.vanelo.guardflow.mobile reason=4 (APP CRASH(EXCEPTION)) subreason=0 (UNKNOWN) status=0
+          importance=400 pss=0,00 rss=0,00 description=crash state=empty trace=null
+        ApplicationExitInfo #10:
+          timestamp=2026-07-21 01:56:51.649 pid=23245 realUid=10224 packageUid=10224 definingUid=10224 user=0
+          process=za.co.vanelo.guardflow.mobile reason=4 (APP CRASH(EXCEPTION)) subreason=0 (UNKNOWN) status=0
+          importance=100 pss=0,00 rss=0,00 description=crash state=empty trace=null
+        ApplicationExitInfo #11:
+          timestamp=2026-07-21 01:56:49.371 pid=22926 realUid=10224 packageUid=10224 definingUid=10224 user=0
+          process=za.co.vanelo.guardflow.mobile reason=10 (USER REQUESTED) subreason=21 (FORCE STOP) status=0
+          importance=100 pss=66MB rss=110MB description=stop za.co.vanelo.guardflow.mobile due to from pid 23221 state=empty trace=null
+        ApplicationExitInfo #12:
+          timestamp=2026-07-21 01:56:27.406 pid=22846 realUid=10224 packageUid=10224 definingUid=10224 user=0
+          process=za.co.vanelo.guardflow.mobile reason=4 (APP CRASH(EXCEPTION)) subreason=0 (UNKNOWN) status=0
+          importance=300 pss=0,00 rss=0,00 description=crash state=empty trace=null
+        ApplicationExitInfo #13:
+          timestamp=2026-07-21 01:56:26.666 pid=22758 realUid=10224 packageUid=10224 definingUid=10224 user=0
+          process=za.co.vanelo.guardflow.mobile reason=4 (APP CRASH(EXCEPTION)) subreason=0 (UNKNOWN) status=0
+          importance=125 pss=0,00 rss=0,00 description=crash state=empty trace=null
+        ApplicationExitInfo #14:
+          timestamp=2026-07-21 01:54:02.214 pid=22370 realUid=10224 packageUid=10224 definingUid=10224 user=0
+          process=za.co.vanelo.guardflow.mobile reason=4 (APP CRASH(EXCEPTION)) subreason=0 (UNKNOWN) status=0
+          importance=100 pss=75MB rss=118MB description=crash state=empty trace=null
+        ApplicationExitInfo #15:
+          timestamp=2026-07-21 01:43:24.018 pid=17709 realUid=10224 packageUid=10224 definingUid=10224 user=0
+          process=za.co.vanelo.guardflow.mobile reason=4 (APP CRASH(EXCEPTION)) subreason=0 (UNKNOWN) status=0
+          importance=100 pss=0,00 rss=0,00 description=crash state=empty trace=null

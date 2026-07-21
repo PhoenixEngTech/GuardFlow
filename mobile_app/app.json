@@ -1,0 +1,72 @@
+{
+    "expo":  {
+                 "name":  "GuardFlow Mobile",
+                 "slug":  "guardflow-mobile",
+                 "version":  "1.0.4",
+                 "orientation":  "portrait",
+                 "icon":  "./assets/guardflow-logo.png",
+                 "userInterfaceStyle":  "dark",
+                 "scheme":  "guardflow",
+                 "ios":  {
+                             "supportsTablet":  false,
+                             "bundleIdentifier":  "za.co.vanelo.guardflow.mobile",
+                             "infoPlist":  {
+                                               "NSLocationWhenInUseUsageDescription":  "GuardFlow uses your location only when you start an authorised protection session.",
+                                               "NSLocationAlwaysAndWhenInUseUsageDescription":  "GuardFlow uses background location only during an authorised protection session, including while the screen is locked."
+                                           }
+                         },
+                 "android":  {
+                                 "package":  "za.co.vanelo.guardflow.mobile",
+                                 "permissions":  [
+                                                     "ACCESS_COARSE_LOCATION",
+                                                     "ACCESS_FINE_LOCATION",
+                                                     "ACCESS_BACKGROUND_LOCATION",
+                                                     "FOREGROUND_SERVICE",
+                                                     "FOREGROUND_SERVICE_LOCATION",
+                                                     "android.permission.ACCESS_COARSE_LOCATION",
+                                                     "android.permission.ACCESS_FINE_LOCATION",
+                                                     "android.permission.ACCESS_BACKGROUND_LOCATION",
+                                                     "android.permission.FOREGROUND_SERVICE",
+                                                     "android.permission.FOREGROUND_SERVICE_LOCATION",
+                                                     "android.permission.RECEIVE_BOOT_COMPLETED"
+                                                 ],
+                                 "adaptiveIcon":  {
+                                                      "backgroundColor":  "#050A14",
+                                                      "foregroundImage":  "./assets/guardflow-logo.png",
+                                                      "backgroundImage":  "./assets/android-icon-background.png",
+                                                      "monochromeImage":  "./assets/android-icon-monochrome.png"
+                                                  },
+                                 "versionCode":  5
+                             },
+                 "web":  {
+                             "favicon":  "./assets/favicon.png"
+                         },
+                 "plugins":  [
+                                 [
+                                     "expo-location",
+                                     {
+                                         "locationAlwaysAndWhenInUsePermission":  "GuardFlow uses your location only during an authorised protection or guard session.",
+                                         "isAndroidBackgroundLocationEnabled":  true,
+                                         "isAndroidForegroundServiceEnabled":  true,
+                                         "isIosBackgroundLocationEnabled":  true
+                                     }
+                                 ],
+                                 "expo-secure-store",
+                                 [
+                                     "expo-splash-screen",
+                                     {
+                                         "image":  "./assets/guardflow-logo.png",
+                                         "imageWidth":  220,
+                                         "resizeMode":  "contain",
+                                         "backgroundColor":  "#050A14"
+                                     }
+                                 ]
+                             ],
+                 "extra":  {
+                               "eas":  {
+                                           "projectId":  "70e58344-de1a-49a2-8ceb-c3d28c3067fa"
+                                       }
+                           },
+                 "owner":  "nkaobehe"
+             }
+}
